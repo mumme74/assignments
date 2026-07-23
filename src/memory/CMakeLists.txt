@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(memorylib)
+project(memory)
 
-file(GLOB memorylib_srcs *.c)
-file(GLOB memorylib_hdrs *.h)
+file(GLOB memory_srcs *.c)
+file(GLOB memory_hdrs *.h)
 
-add_library(memorylib ${memorylib_hdrs} ${memorylib_srcs})
+add_library(memory ${memory_hdrs} ${memory_srcs})

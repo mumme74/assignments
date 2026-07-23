@@ -4,7 +4,7 @@ project(assignments VERSION 0.1 LANGUAGES C)
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_C_STANDARD_REQUIRED TRUE)
 
-option(BUILD_TESTING "Build unit tests" TRUE)
+option(BUILD_TESTS "Build unit tests" FALSE)
 
 if (MSVC)
     add_compile_options(/W3)
@@ -17,3 +17,8 @@ else()
 endif()
 
 add_subdirectory(src)
+include_directories(src)
+
+if (BUILD_TESTS)
+    add_subdirectory(tests)
+endif()

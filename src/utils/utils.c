@@ -16,7 +16,8 @@
  */
 void sigint_handler(int sig)
 {
-    close(get_socket());
+    (void)sig;
+    //close(get_socket());
     exit(0);
 }
 

@@ -1,25 +1,33 @@
 cmake_minimum_required(VERSION 3.25)
 
-add_subdirectory(memory)
+set(SUBDIRS
+    memory
+    network
+    testdata
+    testengine
+    utils
+)
 
-include_directories(memory)
+foreach(subdir ${SUBDIRS})
+    add_subdirectory(${subdir})
+endforeach(subdir ${SUBDIRS})
+
+
+include_directories(memory network testdata testengine)
 
 set(pupil_srcs pupil.c)
 set(teacher_srcs teacher.c)
 
 
-set(gcc_like_cxx "$<COMPILE_LANG_AND_ID:CXX,ARMClang,AppleClang,Clang,GNU>")
-set(msvc_cxx "$<COMPILE_LANG_AND_ID:CXX,MSVC>")
-
-
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}..)
 
 # pupil bin
 add_executable(pupil ${pupil_srcs})
-target_link_libraries(pupil memorylib)
+target_link_libraries(pupil memory)
 
 
 # teacher bin
 add_executable(teacher ${teacher_srcs})
-target_link_libraries(teacher memorylib)
+target_link_libraries(teacher memory)
 
 

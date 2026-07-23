@@ -10,6 +10,5 @@ int main(int argc, const char *argv[])
     struct mem_arena testdata_arena;
     mem_arena_init(&testdata_arena);
 
-
     return EXIT_SUCCESS;
 }
