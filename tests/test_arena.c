@@ -5,11 +5,11 @@
 
 TEST_SETUP(arena_suite)
 
-static struct mem_Arena *arena = NULL;
+static mem_Arena *arena = NULL;
 
 TEST_SETUP_FN(arena_suite)
 {
-    arena = (struct mem_Arena*)malloc(sizeof(struct mem_Arena));
+    arena = (mem_Arena*)malloc(sizeof(mem_Arena));
     mem_arena_init(arena);
 }
 

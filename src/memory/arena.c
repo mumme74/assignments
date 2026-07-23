@@ -3,14 +3,14 @@
 #include "arena.h"
 
 
-struct mem_arena_Segment* alloc_segment(size_t size) {
+mem_arena_Segment* alloc_segment(uint32_t size) {
     // grow in multiples of...
-    size_t sz = MEM_ARENA_SEGMENT_DEFAULT_SZ;
+    uint32_t sz = MEM_ARENA_SEGMENT_DEFAULT_SZ;
     while (sz < size)
         sz += MEM_ARENA_SEGMENT_DEFAULT_SZ;
 
-    struct mem_arena_Segment *seg = (struct mem_arena_Segment*)
-        calloc(1, sizeof(struct mem_arena_Segment));
+    mem_arena_Segment *seg = (mem_arena_Segment*)
+        calloc(1, sizeof(mem_arena_Segment));
 
     if (!seg) return NULL;
 
@@ -25,12 +25,12 @@ struct mem_arena_Segment* alloc_segment(size_t size) {
 // ----------------------------------------------
 
 
-void mem_arena_init(struct mem_Arena *arena)
+void mem_arena_init(mem_Arena *arena)
 {
     arena->root = NULL;
 }
 
-void* mem_arena_alloc(struct mem_Arena *arena, size_t size)
+void* mem_arena_alloc(mem_Arena *arena, uint32_t size)
 {
     assert(arena != NULL);
 
@@ -42,8 +42,8 @@ void* mem_arena_alloc(struct mem_Arena *arena, size_t size)
     }
 
     // find a big enough arena
-    struct mem_arena_Segment *seg = arena->root,
-                             *prev = NULL;
+    mem_arena_Segment *seg = arena->root,
+                      *prev = NULL;
     for (; seg != NULL; seg = seg->next) {
         if (seg->size - seg->alloc_idx >= size)
             break;
@@ -64,8 +64,8 @@ void* mem_arena_alloc(struct mem_Arena *arena, size_t size)
     return ptr;
 }
 
-void mem_arena_free(struct mem_Arena* arena) {
-    for (struct mem_arena_Segment *seg = arena->root, *next = NULL;
+void mem_arena_free(mem_Arena* arena) {
+    for (mem_arena_Segment *seg = arena->root, *next = NULL;
          seg != NULL; seg = next)
     {
         next = seg->next;

@@ -55,8 +55,8 @@ struct addrinfo* lookup_host_and_start(
  * @return 1 on success, 0 on failure.
  */
 int send_to_server(
-    const char *req, size_t req_sz,
-    char *resp, size_t resp_sz,
+    const char *req, uint32_t req_sz,
+    char *resp, uint32_t resp_sz,
     const char *host, const char *port,
     int verbose
 );

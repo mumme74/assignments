@@ -4,6 +4,7 @@ if (NOT TESTRUNNER_DIR)
 endif()
 
 set(SUBDIRS
+    types
     memory
     network
     testdata

@@ -3,6 +3,7 @@
 #define _UTILS_H_
 
 #include <stddef.h>
+#include <stdint.h>
 
 
 #define STR_IMPL(str) #str
@@ -32,6 +33,6 @@ int isnumber(const char *str);
  * @param str The string to check.
  * @param maxlen The maximum length of the string.
  */
-size_t printlen_utf8(const char *str, size_t maxlen);
+uint32_t printlen_utf8(const char *str, uint32_t maxlen);
 
 #endif // _UTILS_H_

@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.25)
 
 set(SUBDIRS
     memory
+    types
     network
     testdata
     testengine
@@ -10,10 +11,9 @@ set(SUBDIRS
 
 foreach(subdir ${SUBDIRS})
     add_subdirectory(${subdir})
+    include_directories(${subdir})
 endforeach(subdir ${SUBDIRS})
 
-
-include_directories(memory network testdata testengine)
 
 set(pupil_srcs pupil.c)
 set(teacher_srcs teacher.c)

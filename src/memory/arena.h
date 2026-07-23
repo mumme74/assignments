@@ -10,22 +10,22 @@
 /**
  * A arena segment
  */
-struct mem_arena_Segment
+typedef struct _mem_arena_Segment
 {
-    struct mem_arena_Segment *next; ///< next segment, when we can't alloc enough
+    struct _mem_arena_Segment *next; ///< next segment, when we can't alloc enough
     uint8_t *bytes; ///< The memory array ptr
-    size_t size; ///< The Size of this arena segment
+    uint32_t size; ///< The Size of this arena segment
     uint16_t alloc_idx; ///< the allocate pointer
-};
+} mem_arena_Segment;
 
 /**
  * The actual memory arena
  */
-struct mem_Arena
+typedef struct
 {
-    struct mem_arena_Segment *root; ///< The first arena segment
+    mem_arena_Segment *root; ///< The first arena segment
 
-};
+} mem_Arena;
 
 /**
  * initialize an arena
@@ -33,7 +33,7 @@ struct mem_Arena
  * @param arena The arena to initialize
  * @return true if success
  */
-void mem_arena_init(struct mem_Arena *arena);
+void mem_arena_init(mem_Arena *arena);
 
 /**
  * Allocate new memory from the arena
@@ -42,12 +42,12 @@ void mem_arena_init(struct mem_Arena *arena);
  * @param size The size to allocate
  * @return void ptr to memory position or NULL if failed
  */
-void* mem_arena_alloc(struct mem_Arena *arena, size_t size);
+void* mem_arena_alloc(mem_Arena *arena, uint32_t size);
 
 /**
  * Free an arenas segment, the actual arena is NOT freed
  */
-void mem_arena_free(struct mem_Arena* arena);
+void mem_arena_free(mem_Arena* arena);
 
 
 #endif // _ARENA_H_

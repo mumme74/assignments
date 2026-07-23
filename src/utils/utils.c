@@ -46,9 +46,9 @@ int isnumber(const char *str)
  * @param str The string to check.
  * @param maxlen The maximum length of the string in ascii len.
  */
-size_t printlen_utf8(const char *str, size_t maxlen)
+uint32_t printlen_utf8(const char *str, uint32_t maxlen)
 {
-    size_t len = 0;
+    uint32_t len = 0;
     for (const char *p = str; *p != '\0' && --maxlen; ++p) {
         if ((*p & 0xC0) != 0x80)
             ++len;
