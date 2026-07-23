@@ -63,6 +63,54 @@ enum testdata_test_obj_Flags {
     AbortAfterTenErrors = 0x0004,
 };
 
+/**
+ * A single person
+ */
+typedef struct
+{
+    uint8_t roles_mask; ///< The testdata_person_Roles this person has
+    types_String name; ///< the name of this person.
+    types_String email; ///< the email of this person.
+} testdata_Person;
+
+/**
+ * The header for all persons list
+ */
+typedef struct {
+    uint32_t size; ///< Allocated number of persons
+    uint32_t len; ///< Num of persons in this doc
+    testdata_Person **data; ///< Array of persons
+} testdata_Persons;
+
+/**
+ * A atomic thing to do or expect during a test session
+ */
+typedef struct {
+    enum testdata_Type type; ///< The type of test to perform
+    types_String string; ///< the string to send or expect
+    uint16_t flags;  ///< Controlling flags for this test
+} testdata_Obj;
+
+/**
+ * A specific test session
+ */
+typedef struct {
+    types_String identifier; ///< A identifier for this test
+    types_String command; ///< The command to run on the client
+    uint16_t size; ///< The allocated cnt
+    uint16_t len; ///< The number of testObjects in this test
+    testdata_Obj** data; ///< The test objects for this test
+} testdata_Test;
+
+/**
+ * The actual tests header
+ */
+typedef struct
+{
+    uint16_t size; ///< How many test is allocated in this tests list
+    uint16_t len; ///< How many test is stored.
+    testdata_Test** data;
+} testdata_Tests;
 
 /**
  * The header of for the binary format
@@ -75,53 +123,6 @@ typedef struct  {
     uint8_t  version; ///< The version of the storageformat of this data blob
     uint8_t _pad[5]; // align to 8bytes multiples
 } testdata_Header;
-
-/**
- * The header for all persons list
- */
-typedef struct {
-    uint32_t size; ///< Allocated size
-    uint32_t len; ///< Num of persons in this doc
-    uint16_t num_persons; ///< How many persons in this list
-} testdata_Persons;
-
-/**
- * A single person
- */
-typedef struct
-{
-    uint8_t roles_mask; ///< The testdata_person_Roles this person has
-    types_String name; ///< the name of this person.
-    types_String email; ///< the email of this person.
-} testdata_Person;
-
-
-/**
- * The actual tests header
- */
-typedef struct
-{
-    uint32_t size; ///< Num bytes in this section
-    uint16_t num_tests; ///< How many tests stored
-} testdata_Tests;
-
-/**
- * A specific test session
- */
-typedef struct {
-    types_String identifier; ///< A identifier for this test
-    types_String command; ///< The command to run on the client
-    uint16_t num_test_objs; ///< The number of testObjects in this test
-} testdata_Test;
-
-/**
- * A atomic thing to do or expect during a test session
- */
-typedef struct {
-    enum testdata_Type type; ///< The type of test to perform
-    types_String data; ///< the string to send or expect
-    uint16_t flags;  ///< Controlling flags for this test
-} testdata_Obj;
 
 
 /**
@@ -137,14 +138,125 @@ typedef struct {
 
 // -----------------------------------------------------------------------
 
-void testdata_Header_init(testdata_Header *header);
-void testdata_Persons_init(testdata_Persons *persons);
-void testdata_Person_init(testdata_Person *person);
-void testdata_Tests_init(testdata_Tests *tests);
-void testdata_Obj_init(testdata_Obj *obj);
-void testdata_Document_init(testdata_Document *doc);
+void testdata_person_init(testdata_Person *person);
 
-bool testdata_Persons_add();
+// --------------------------------------------------------------
+/**
+ * Initialize a list of persons
+ *
+ * @param persons The persons list
+ */
+void testdata_persons_init(testdata_Persons *persons);
+
+/**
+ * Pre-allocate cnt number of persons with arena
+ *
+ * @param persons The list of persons
+ * @param cnt How many to persons this list should hold.
+ * @param arena The memory arena to allocate on
+ * @returns false if failed.
+ */
+bool testdata_persons_pre_alloc(
+    testdata_Persons* persons, uint16_t cnt, mem_Arena* arena);
+
+/**
+ * Add person to the list of persons, grow list if needed.
+ *
+ * @param persons The list to add the person to.
+ * @param person The person to add
+ * @param arena The arena to allocate on.
+ * @return index in list for the newly added or -1 if failed
+ */
+int32_t testdata_persons_add_person(
+    testdata_Persons* persons, testdata_Person* person, mem_Arena* arena);
+
+
+/**
+ * Insert person into persons list before other person
+ *
+ * @param persons The list to insert person into
+ * @param person The person to insert
+ * @param before Before this person, may be NULL which inserts last.
+ * @param arena Allocate using this arena
+ * @return index of inerted person or -1 if failed
+ */
+int32_t testdata_persons_insert(
+    testdata_Persons* persons, testdata_Person* person,
+    testdata_Person* before, mem_Arena* arena);
+
+/**
+ * Get the index of this person in the list of persons
+ *
+ * @param persons The list of persons to search in
+ * @param person The person to look for
+ * @return the index o -1 if not found.
+ */
+int32_t testdata_persons_index_of(
+    testdata_Persons* persons, testdata_Person* person);
+
+/**
+ * Remove the person from persons list.
+ *
+ * @param persons The list to remove person from.
+ * @param person The person to remove.
+ * @return false if failed, like not found
+ */
+bool testdata_persons_remove(
+    testdata_Persons* persons, testdata_Person* person);
+
+// --------------------------------------------------------------
+void testdata_obj_init(testdata_Obj *obj);
+
+
+// ---------------------------------------------------------------
+
+
+void testdata_test_init(testdata_Test *test);
+
+
+bool testdata_test_pre_alloc(
+    testdata_Test* test, uint16_t cnt, mem_Arena* arena);
+
+int32_t testdata_test_add_obj(
+    testdata_Test* test, testdata_Obj* obj, mem_Arena* arena);
+
+
+int32_t testdata_test_insert(
+    testdata_Test* test, testdata_Obj* obj,
+    testdata_Obj* before, mem_Arena* arena);
+
+int32_t testdata_test_index_of(
+    testdata_Test* test, testdata_Obj* obj);
+
+bool testdata_test_remove(
+    testdata_Test* test, testdata_Obj* obj);
+
+//  ---------------------------------------------------------------
+void testdata_tests_init(testdata_Tests *tests);
+
+bool testdata_tests_pre_alloc(
+    testdata_Tests* tests, uint16_t cnt, mem_Arena* arena);
+
+int32_t testdata_tests_add_obj(
+    testdata_Tests* tests, testdata_Test* test, mem_Arena* arena);
+
+int32_t testdata_tests_insert(
+    testdata_Tests* tests, testdata_Test* test,
+    testdata_Test* before, mem_Arena* arena);
+
+int32_t testdata_tests_index_of(
+    testdata_Tests* tests, testdata_Test* test);
+
+bool testdata_tests_remove(
+    testdata_Tests* tests, testdata_Test* test);
+
+// --------------------------------------------------------------
+void testdata_doc_header_init(testdata_Header *header);
+
+// --------------------------------------------------------------
+void testdata_doc_init(testdata_Document *doc);
+
+bool testdata_doc_add_persons();
 
 /**
  * Add a person to the document
