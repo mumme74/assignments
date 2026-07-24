@@ -69,8 +69,8 @@ enum testdata_test_obj_Flags {
 typedef struct
 {
     uint8_t roles_mask; ///< The testdata_person_Roles this person has
-    types_String name; ///< the name of this person.
-    types_String email; ///< the email of this person.
+    String name; ///< the name of this person.
+    String email; ///< the email of this person.
 } testdata_Person;
 
 /**
@@ -87,7 +87,7 @@ typedef struct {
  */
 typedef struct {
     enum testdata_Type type; ///< The type of test to perform
-    types_String string; ///< the string to send or expect
+    String string; ///< the string to send or expect
     uint16_t flags;  ///< Controlling flags for this test
 } testdata_Obj;
 
@@ -95,8 +95,8 @@ typedef struct {
  * A specific test session
  */
 typedef struct {
-    types_String identifier; ///< A identifier for this test
-    types_String command; ///< The command to run on the client
+    String identifier; ///< A identifier for this test
+    String command; ///< The command to run on the client
     uint16_t size; ///< The allocated cnt
     uint16_t len; ///< The number of testObjects in this test
     testdata_Obj** data; ///< The test objects for this test
@@ -138,7 +138,7 @@ typedef struct {
 
 // -----------------------------------------------------------------------
 
-void testdata_person_init(testdata_Person *person);
+void testdata_person_init(testdata_Person *person, mem_Arena* arena);
 
 // --------------------------------------------------------------
 /**

@@ -5,7 +5,7 @@
 
 TEST_SETUP(str_suite)
 
-static types_String str;
+static String str;
 static mem_Arena arena;
 
 TEST_SUITE_SETUP_FN(str_suite)
@@ -20,46 +20,26 @@ TEST_SUITE_TEARDOWN_FN(str_suite)
 
 TEST_SETUP_FN(str_suite)
 {
-    types_string_init(&str);
+    String_init(&str, &arena);
 }
 
-TEST(str_suite, str_init, "Should initialize")
-{
-    types_String str;
-    str.data = (void*)0x01;
-    types_string_init(&str);
-
-    expectEQ(NULL, str.data);
-}
-
-TEST(str_suite, str_prealloc, "Should prealloc")
-{
-    types_string_pre_alloc(&str, 30, &arena);
-    expectNE((void*)str.data, NULL);
-
-    expectEQ(str.size, 31);
-
-    expectEQ(str.data, "");
-    expectEQ(str.data[30], 0);
-}
-
-TEST(str_suite, str_push, "Should append")
+TEST(str_suite, str_append, "Should append cstr")
 {
     char buf[] = "Append this string";
-    size_t len = strlen(buf);
-    bool res = types_string_push_str(&str, buf, len, &arena);
+    size_t size = strlen(buf);
+    bool res = String_append_str(&str, buf, size);
     expectTrue(res);
 
-    expectEQ(str.len, len);
-    expectEQ(str.data, buf);
+    expectEQ(str.size, size);
+    expectEQ(str.elements, buf);
 
-    res = types_string_push_str(&str, buf, len, &arena);
     expectTrue(res);
     char buf2[200] = {0};
-    strncat(buf2, buf, len);
-    strncat(buf2, buf, len);
-    expectEQ(str.data, buf2);
-    expectEQ(str.len, len*2);
+    strncat(buf2, buf, size);
+    strncat(buf2, buf, size);
+    res = String_append_str(&str, buf2, size);
+    expectEQ(str.elements, buf2);
+    expectEQ(str.size, size*2);
 }
 
 TEST(str_suite, str_scramble, "Should scramble")
@@ -75,13 +55,12 @@ TEST(str_suite, str_scramble, "Should scramble")
     };
     size_t len = strlen(buf);
 
-    types_String scramble;
-    types_string_pre_alloc(&scramble, len, &arena);
+    String scramble = {.arena=&arena};
 
-    types_string_push_str(&str, buf, len, &arena);
+    String_append_str(&str, buf, len);
 
-    types_string_scramble(&scramble, &str, 0x2468ACE1);
-    expectEQ(scramble.data, expect);
+    String_scramble(&scramble, &str, 0x2468ACE1);
+    expectEQ(scramble.elements, expect);
 }
 
 TEST(str_suite, str_unscramble, "Should unscramble")
@@ -97,11 +76,10 @@ TEST(str_suite, str_unscramble, "Should unscramble")
     };
     size_t len = strlen(buf);
 
-    types_String unscramble;
-    types_string_pre_alloc(&unscramble, len, &arena);
+    String unscramble = {.arena=&arena};
 
-    types_string_push_str(&str, buf, len, &arena);
+    String_append_str(&str, buf, len);
 
-    types_string_unscramble(&unscramble, &str, 0x2468ACE1);
-    expectEQ(unscramble.data, expect);
+    String_unscramble(&unscramble, &str, 0x2468ACE1);
+    expectEQ(unscramble.elements, expect);
 }

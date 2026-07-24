@@ -45,6 +45,7 @@
 
 #include <stddef.h>
 #include <string.h> // for memset
+#include <stdbool.h>
 #include "arena.h"
 
 #define CAT_(a, b) a##b

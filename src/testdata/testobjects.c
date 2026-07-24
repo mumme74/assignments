@@ -6,9 +6,11 @@
 // ----------------------------------------------------------
 
 
-void testdata_person_init(testdata_Person *person)
+void testdata_person_init(testdata_Person *person, mem_Arena* arena)
 {
-    memset(person, 0, sizeof(*person));
+    String_init(&person->name, arena);
+    String_init(&person->email, arena);
+    person->roles_mask = 0;
 }
 
 // -------------------------------------------------

@@ -13,10 +13,10 @@ static void add_person(
     enum testdata_person_Roles roles
 ) {
     testdata_Person *person = mem_arena_alloc(&arena, sizeof(testdata_Person));
-    testdata_person_init(person);
+    testdata_person_init(person, &arena);
 
-    types_string_push_str(&person->name, name, strlen(name), &arena);
-    types_string_push_str(&person->email, email, strlen(email), &arena);
+    String_append_str(&person->name, name, strlen(name));
+    String_append_str(&person->email, email, strlen(email));
     person->roles_mask |= roles;
 
     pers[idx] = person;
@@ -40,10 +40,10 @@ TEST_SETUP_FN(pers_suite)
 TEST(pers_suite, pers_init, "Should init pers")
 {
     testdata_Person person;
-    testdata_person_init(&person);
+    testdata_person_init(&person, &arena);
 
-    expectEQ((void*)person.email.data, NULL);
-    expectEQ((void*)person.name.data, NULL);
+    expectEQ((void*)person.email.elements, NULL);
+    expectEQ((void*)person.name.elements, NULL);
     expectEQ(person.roles_mask, 0);
 }
 
@@ -87,8 +87,8 @@ TEST(persons_suite, addperson, "Should add a person")
     expectEQ(persons.len, 1);
     expectEQ(persons.size, 1);
     expectEQ((void*)persons.data[0], pers[0]);
-    expectEQ(persons.data[0]->name.data, "TestName");
-    expectEQ(persons.data[0]->email.data, "text@fake.nu");
+    expectEQ(persons.data[0]->name.elements, "TestName");
+    expectEQ(persons.data[0]->email.elements, "text@fake.nu");
 
 
     add_person(1, "Name2", "test2@morefake.com", Student);
@@ -96,8 +96,8 @@ TEST(persons_suite, addperson, "Should add a person")
     expectEQ(persons.len, 2);
     expectEQ(persons.size, 2);
     expectEQ((void*)persons.data[1], pers[1]);
-    expectEQ(persons.data[1]->name.data, "Name2");
-    expectEQ(persons.data[1]->email.data, "test2@morefake.com");
+    expectEQ(persons.data[1]->name.elements, "Name2");
+    expectEQ(persons.data[1]->email.elements, "test2@morefake.com");
 }
 
 TEST(persons_suite, indexof, "Should return indexof")
@@ -194,6 +194,6 @@ TEST(obj_suite, objinit, "Should init")
     testdata_obj_init(&obj);
     expectEQ(obj.flags, 0);
     expectEQ(obj.type, 0);
-    expectEQ((void*)obj.string.data, NULL);
-    expectEQ(obj.string.len, 0);
+    expectEQ((void*)obj.string.elements, NULL);
+    expectEQ(obj.string.size, 0);
 }

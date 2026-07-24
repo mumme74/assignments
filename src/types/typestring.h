@@ -6,29 +6,17 @@
 #include <stdbool.h>
 #include "arena.h"
 
-/**
- * Stores a string in a scrambled form
- */
-typedef struct {
-    uint32_t len; ///< how many bytes
-    uint32_t size; ///< allocated size
-    char *data; ///< Holds len amounts of str data, null terminated
-} types_String;
 
-/**
- * Initialize a string
- */
-void types_string_init(types_String *str);
+#ifndef NO_TEMPLATE
 
-/**
- * Initialize a string to to size using arena
- *
- * @param str The string to alloc to
- * @param size The wanted size
- * @param arena Allocate using arena
- * @return false if failed
- */
-bool types_string_pre_alloc(types_String *str, uint32_t size, mem_Arena *arena);
+// create a char array used as a string
+#define NAME String
+#define T char
+//#define ARRAY_IMPLEMENTATION
+#include "array.template.h"
+
+#endif
+
 
 /**
  * Append a C string to end
@@ -36,12 +24,9 @@ bool types_string_pre_alloc(types_String *str, uint32_t size, mem_Arena *arena);
  * @param dest The string to grow
  * @param src The C string to append
  * @param sz The size of src
- * @param arena The arena to use when needing to grow.
  * @return false if failed
  */
-bool types_string_push_str(
-    types_String *dest, const char *src,
-    uint32_t sz, mem_Arena *arena);
+bool String_append_str(String *dest, const char *src, uint32_t sz);
 
 /**
  * Scramble a string using scramble
@@ -50,7 +35,7 @@ bool types_string_push_str(
  * @param src The string to scramble
  * @param scramble Using this scramble key
  */
-void types_string_scramble(types_String *dest, types_String *src, uint32_t scramble);
+bool String_scramble(String *dest, String *src, uint32_t scramble);
 
 /**
  * Unscramble a string using scramble
@@ -59,6 +44,19 @@ void types_string_scramble(types_String *dest, types_String *src, uint32_t scram
  * @param src The scrambled string to unscramble
  * @param scramble Using this scramble key
  */
-void types_string_unscramble(types_String *dest, types_String *src, uint32_t scramble);
+bool String_unscramble(String *dest, String *src, uint32_t scramble);
+
+// -----------------------------------------------------------------------
+
+#ifndef NO_TEMPLATE
+
+// create an Array Strings
+#define NAME StringArr
+#define T String
+//#define ARRAY_IMPLEMENTATION
+#define CHECK_EQUAL(a,b) strcmp(a.elements, b.elements) == 0
+#include "array.template.h"
+
+#endif
 
 #endif // _TYPES_H_
