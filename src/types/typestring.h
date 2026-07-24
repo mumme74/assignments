@@ -7,7 +7,7 @@
 #include "arena.h"
 
 
-#ifndef NO_TEMPLATE
+#ifndef NO_TEMPLATE_STRING
 
 // create a char array used as a string
 #define NAME String
@@ -48,7 +48,7 @@ bool String_unscramble(String *dest, String *src, uint32_t scramble);
 
 // -----------------------------------------------------------------------
 
-#ifndef NO_TEMPLATE
+#ifndef NO_TEMPLATE_STRING
 
 // create an Array Strings
 #define NAME StringArr

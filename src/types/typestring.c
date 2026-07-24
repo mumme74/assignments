@@ -16,7 +16,7 @@
 #define CHECK_EQUAL(a,b) strcmp(a.elements, b.elements) == 0
 #include "array.template.h"
 
-#define NO_TEMPLATE
+#define NO_TEMPLATE_STRING
 #include "typestring.h"
 
 
