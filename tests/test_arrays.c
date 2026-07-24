@@ -254,3 +254,44 @@ TEST(str_arr_suite, index_of, "Should scan in str")
     expectEQ(StrArr_last_index_of(&str_arr, "Second"), 1);
 }
 
+// --------------------------------------------------------------
+
+typedef struct TestObj {
+    uint8_t member;
+    const char* str;
+} TestObj;
+
+#define NAME TestObjArr
+#define T TestObj
+#define ARRAY_IMPLEMENTATION
+#define CHECK_EQUAL(a, b) \
+    a.member == b.member && strcmp(a.str, b.str) == 0
+#include "array.template.h"
+
+
+TEST_SETUP(obj_arr_suite)
+
+TEST_SUITE_SETUP_FN(obj_arr_suite)
+{
+    mem_arena_init(&arena);
+}
+
+TEST_SUITE_TEARDOWN_FN(obj_arr_suite)
+{
+    mem_arena_free(&arena);
+}
+
+static TestObjArr obj_arr;
+
+TEST_SETUP_FN(obj_arr_suite)
+{
+    TestObjArr_init(&obj_arr, &arena);
+}
+
+TEST(obj_arr_suite, obj_index_of, "Test index of we objs")
+{
+    TestObj obj = {10, "TestObj1"};
+    expectEQ(TestObjArr_index_of(&obj_arr, obj), -1);
+    TestObjArr_push_back(&obj_arr, obj);
+    expectEQ(TestObjArr_index_of(&obj_arr, obj), 0);
+}

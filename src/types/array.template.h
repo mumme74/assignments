@@ -8,9 +8,14 @@
  * #define NAME array_int       ///< The name of the collection
  * #define ARRAY_IMPLEMENTATION ///< Define implementation, once per translation unit
  * #include "array.template.h"  ///< Instanciates this template
- * Optinal:
- * #define ARRAY_INIT_SZ 8
- * #define ARRAY_GROW_BY 2
+ *
+ * Optional:
+ * #define CHECK_EQUAL(a, b) \   ///< If storing a non comparable object such as a obj
+ *          a.prop1 == b.prop1 && a.prop2 == b.prop2
+ *
+ * #define ARRAY_INIT_SZ 8      ///< The initial size
+ * #define ARRAY_GROW_BY 2      ///< The growth factor, 2 doubles each time
+ *
  */
 
 #ifndef T
@@ -23,6 +28,10 @@
 
 #ifndef ARRAY_GROW_BY
 #define ARRAY_GROW_BY 2
+#endif
+
+#ifndef CHECK_EQUAL
+#define CHECK_EQUAL(a,b) a==b
 #endif
 
 // dev mode:squelsh dev error
@@ -174,26 +183,29 @@ bool remove(NAME* arr, int32_t idx)
     for (size_t i = idx+1, j = idx; i < arr->size; ++i, ++j)
         arr->elements[j] = arr->elements[i];
 
-    arr->elements[--arr->size] = 0;
+    T empty = {0};
+    arr->elements[--arr->size] = empty;
 
     return true;
 }
 
 T pop_back(NAME* arr)
 {
+    T empty = {0};
     if (arr->size == 0)
-        return 0;
+        return empty;
 
     T element = arr->elements[arr->size-1];
-    arr->elements[--arr->size] = 0;
+    arr->elements[--arr->size] = empty;
 
     return element;
 }
 
 T pop_front(NAME* arr)
 {
+    T empty = {0};
     if (arr->size == 0)
-        return 0;
+        return empty;
 
     T element = arr->elements[0];
     remove(arr, 0);
@@ -204,7 +216,7 @@ T pop_front(NAME* arr)
 int32_t index_of(NAME* arr, T element)
 {
     for (int32_t i = 0; i < (int32_t)arr->size; ++i) {
-        if (arr->elements[i] == element)
+        if (CHECK_EQUAL(arr->elements[i], element))
             return i;
     }
 
@@ -214,7 +226,7 @@ int32_t index_of(NAME* arr, T element)
 int32_t last_index_of(NAME* arr, T element)
 {
     for (int32_t i = arr->size-1; i > -1; --i) {
-        if (arr->elements[i] == element)
+        if (CHECK_EQUAL(arr->elements[i], element))
             return i;
     }
 
@@ -274,3 +286,4 @@ bool concat(NAME* dest, NAME* src)
 #undef GROW_IF_NEEDED
 #undef ARRAY_GROW_BY
 #undef ARRAY_INIT_SZ
+#undef CHECK_EQUAL
