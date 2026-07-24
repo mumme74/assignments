@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.25)
 
 project(testdata)
 
-include_directories(../types)
+include_directories(../types ../utils)
 
 file(GLOB testdata_srcs *.c)
 file(GLOB testdata_hdrs *.h)

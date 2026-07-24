@@ -8,6 +8,7 @@
 #include "tests.h"
 
 #define DOC_HDR_IDENTIFIER 0xFACEFEED
+#define DOC_HDR_IDENTIFIER_REVERSE 0xEDFEEFFA
 #define DOC_HDR_VERSION 0x01
 
 /*
@@ -55,7 +56,7 @@ PersonsArr
         String email
 
 TestArr
-    uint32_t number of tests in this array
+    uint32_t number of test sessions in this array
 
     Test (repeating)
         String identifier
