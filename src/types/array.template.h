@@ -117,7 +117,7 @@ bool resize(NAME* arr, size_t capacity)
     T* old = arr->elements;
     arr->elements = (T*)mem_arena_realloc(
         arr->arena, (uint8_t*)arr->elements,
-        arr->capacity, capacity);
+        arr->capacity * sizeof(T), capacity * sizeof(T));
 
     if (!arr->elements) {
         arr->elements = old;
