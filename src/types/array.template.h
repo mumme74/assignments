@@ -53,6 +53,7 @@
 #define index_of CAT(NAME, _index_of)
 #define last_index_of CAT(NAME, _last_index_of)
 #define slice CAT(NAME, _slice)
+#define concat CAT(NAME, _concat)
 
 #define NAME_SLICE CAT(NAME, Slice)
 
@@ -81,6 +82,7 @@ T pop_front(NAME* arr);
 int32_t index_of(NAME* arr, T element);
 int32_t last_index_of(NAME* arr, T element);
 NAME_SLICE slice(NAME* arr, size_t start, int32_t len);
+bool concat(NAME* dest, NAME* src);
 
 
 
@@ -235,6 +237,21 @@ NAME_SLICE slice(NAME* arr, size_t start, int32_t len)
     return slice;
 }
 
+bool concat(NAME* dest, NAME* src)
+{
+    size_t needed = dest->size + src->size;
+    if (needed > dest->capacity &&
+        !resize(dest, needed)
+    )
+        return false;
+
+    memcpy(&dest->elements[dest->size], src->elements, src->size * sizeof(T));
+
+    dest->size += src->size;
+
+    return true;
+}
+
 
 #endif
 
@@ -249,6 +266,7 @@ NAME_SLICE slice(NAME* arr, size_t start, int32_t len)
 #undef index_of
 #undef last_index_of
 #undef slice
+#undef concat
 
 #undef T
 #undef NAME

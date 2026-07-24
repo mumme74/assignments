@@ -193,6 +193,29 @@ TEST(char_arr_suite, slice, "Test slices")
     expectEQ(slice.elements[1], 'c');
 }
 
+TEST(char_arr_suite, concat, "Test Concat")
+{
+    CharArr_push_back(&char_arr, 'a');
+    CharArr_push_back(&char_arr, 'b');
+    CharArr_push_back(&char_arr, 'c');
+    CharArr ch_arr2 = {0};
+    CharArr_init(&ch_arr2, &arena);
+    CharArr_push_back(&ch_arr2, '1');
+    CharArr_push_back(&ch_arr2, '2');
+    CharArr_push_back(&ch_arr2, '3');
+    CharArr_push_back(&ch_arr2, '4');
+
+    expectTrue(CharArr_concat(&char_arr, &ch_arr2));
+    expectEQ(char_arr.size, 7);
+    expectEQ((const char*)char_arr.elements, "abc1234");
+
+    // trigger growth
+    expectTrue(CharArr_concat(&char_arr, &ch_arr2));
+    expectEQ(char_arr.size, 11);
+    expectEQ((const char*)char_arr.elements, "abc12341234");
+    expectGTE(char_arr.capacity, 11);
+}
+
 //------------------------------------------------
 
 #define NAME StrArr
