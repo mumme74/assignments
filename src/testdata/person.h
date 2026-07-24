@@ -19,7 +19,7 @@ enum PersonRoles {
  */
 typedef struct Person
 {
-    uint8_t roles_mask; ///< The doc_person_Roles this person has
+    uint32_t roles_mask; ///< The doc_person_Roles this person has
     String name; ///< the name of this person.
     String email; ///< the email of this person.
 } Person;

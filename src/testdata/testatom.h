@@ -18,8 +18,8 @@ enum TestAtomType {
  */
 typedef struct TestAtom{
     enum TestAtomType type; ///< The type of test to perform
+    uint32_t flags;  ///< Controlling flags for this test
     String string; ///< the string to send or expect
-    uint16_t flags;  ///< Controlling flags for this test
 } TestAtom;
 
 

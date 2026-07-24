@@ -56,3 +56,14 @@ uint32_t printlen_utf8(const char *str, uint32_t maxlen)
 
     return len;
 }
+
+
+void write_error(const char* errmsg)
+{
+    fprintf(stderr, "%s\n", errmsg);
+}
+
+void write_warning(const char* warning)
+{
+    fprintf(stdout, "%s\n", warning);
+}

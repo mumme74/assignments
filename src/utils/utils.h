@@ -35,4 +35,14 @@ int isnumber(const char *str);
  */
 uint32_t printlen_utf8(const char *str, uint32_t maxlen);
 
+/**
+ * A single point for error messages
+ */
+void write_error(const char* errmsg);
+
+/**
+ * A single point to write warnings.
+ */
+void write_warning(const char* warning);
+
 #endif // _UTILS_H_
