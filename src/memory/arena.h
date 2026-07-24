@@ -14,8 +14,8 @@ typedef struct _mem_arena_Segment
 {
     struct _mem_arena_Segment *next; ///< next segment, when we can't alloc enough
     uint8_t *bytes; ///< The memory array ptr
-    uint32_t size; ///< The Size of this arena segment
-    uint16_t alloc_idx; ///< the allocate pointer
+    size_t size; ///< The Size of this arena segment
+    size_t alloc_idx; ///< the allocate pointer
 } mem_arena_Segment;
 
 /**
@@ -42,7 +42,20 @@ void mem_arena_init(mem_Arena *arena);
  * @param size The size to allocate
  * @return void ptr to memory position or NULL if failed
  */
-void* mem_arena_alloc(mem_Arena *arena, uint32_t size);
+void* mem_arena_alloc(mem_Arena *arena, size_t size);
+
+/**
+ * Reallocates memory to a new size, in place if possible.\
+ * else it allocates a new spot and moves data there.
+ *
+ * @param arena The arena to alloc on
+ * @param data The data to reallocate
+ * @param oldSize The size before
+ * @param newSize The wanted size
+ * @return pointer to new data or NULL if failed
+ */
+void* mem_arena_realloc(
+    mem_Arena *arena, uint8_t* data, size_t oldSize, size_t newSize);
 
 /**
  * Free an arenas segment, the actual arena is NOT freed

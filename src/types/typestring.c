@@ -1,9 +1,9 @@
 #include <assert.h>
 #include <string.h>
-#include "types.h"
 #include "arena.h"
 
-#include <stdio.h>
+#include "typestring.h"
+
 
 #define XOR_VLU 0xA5
 
@@ -60,7 +60,6 @@ void types_string_scramble(types_String *dest, types_String *src, uint32_t scram
         uint8_t b = (src->data[i] + sc) ^ XOR_VLU;
         dest->data[i] = b;
     }
-    fflush(stdout);
 }
 
 void types_string_unscramble(types_String *dest, types_String *src, uint32_t scramble)

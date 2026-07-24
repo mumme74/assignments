@@ -1,7 +1,7 @@
 #include <string.h>
 
 #include "testrunner.h"
-#include "types.h"
+#include "typestring.h"
 
 TEST_SETUP(str_suite)
 

@@ -2,7 +2,7 @@
 #define _TEST_OBJECTS_H_
 
 #include <stdint.h>
-#include "types.h"
+#include "typestring.h"
 
 #define TESTDATA_HDR_IDENTIFIER 0xFACEFEED
 #define TESTDATA_HDR_VERSION 0x01
@@ -178,7 +178,7 @@ int32_t testdata_persons_add_person(
  * @param person The person to insert
  * @param before Before this person, may be NULL which inserts last.
  * @param arena Allocate using this arena
- * @return index of inerted person or -1 if failed
+ * @return index of inserted person or -1 if failed
  */
 int32_t testdata_persons_insert(
     testdata_Persons* persons, testdata_Person* person,
