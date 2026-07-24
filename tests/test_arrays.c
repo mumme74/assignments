@@ -111,4 +111,123 @@ TEST(char_arr_suite, insert, "Should test insert")
     expectEQ(char_arr.elements[5], 'd');
 }
 
+TEST(char_arr_suite, remove, "Test remove")
+{
+    expectFalse(CharArr_remove(&char_arr, 0));
+
+    expectTrue(CharArr_push_back(&char_arr, 'a'));
+    expectTrue(CharArr_push_back(&char_arr, 'b'));
+    expectTrue(CharArr_push_back(&char_arr, 'c'));
+    expectTrue(CharArr_push_back(&char_arr, 'd'));
+
+    expectFalse(CharArr_remove(&char_arr, 4));
+    expectFalse(CharArr_remove(&char_arr, -1));
+
+    expectTrue(CharArr_remove(&char_arr, 1));
+    expectEQ(char_arr.elements[1], 'c');
+    expectEQ(char_arr.size, 3);
+
+    expectTrue(CharArr_remove(&char_arr, 2));
+    expectEQ(char_arr.elements[1], 'c');
+    expectEQ(char_arr.size, 2);
+
+    expectTrue(CharArr_remove(&char_arr, 0));
+    expectEQ(char_arr.elements[0], 'c');
+    expectEQ(char_arr.size, 1);
+
+    expectTrue(CharArr_remove(&char_arr, 0));
+    expectEQ(char_arr.size, 0);
+
+    expectFalse(CharArr_remove(&char_arr, 0));
+}
+
+TEST(char_arr_suite, pop_back, "Test pop_back")
+{
+    expectEQ(CharArr_pop_back(&char_arr), 0);
+
+    expectTrue(CharArr_push_back(&char_arr, 'a'));
+    expectTrue(CharArr_push_back(&char_arr, 'b'));
+    expectTrue(CharArr_push_back(&char_arr, 'c'));
+    expectTrue(CharArr_push_back(&char_arr, 'd'));
+
+    expectEQ(CharArr_pop_back(&char_arr), 'd');
+    expectEQ(CharArr_pop_back(&char_arr), 'c');
+    expectEQ(CharArr_pop_back(&char_arr), 'b');
+    expectEQ(CharArr_pop_back(&char_arr), 'a');
+    expectEQ(CharArr_pop_back(&char_arr), 0);
+}
+
+
+TEST(char_arr_suite, pop_front, "Test pop_front")
+{
+    expectEQ(CharArr_pop_back(&char_arr), 0);
+
+    expectTrue(CharArr_push_back(&char_arr, 'a'));
+    expectTrue(CharArr_push_back(&char_arr, 'b'));
+    expectTrue(CharArr_push_back(&char_arr, 'c'));
+    expectTrue(CharArr_push_back(&char_arr, 'd'));
+
+    expectEQ(CharArr_pop_front(&char_arr), 'a');
+    expectEQ(CharArr_pop_front(&char_arr), 'b');
+    expectEQ(CharArr_pop_front(&char_arr), 'c');
+    expectEQ(CharArr_pop_front(&char_arr), 'd');
+    expectEQ(CharArr_pop_front(&char_arr), 0);
+}
+
+TEST(char_arr_suite, slice, "Test slices")
+{
+    CharArrSlice slice = CharArr_slice(&char_arr, 1, 1);
+    expectEQ((void*)slice.arr, NULL);
+    expectEQ(slice.size, 0);
+    expectEQ((void*)slice.elements, NULL);
+
+    expectTrue(CharArr_push_back(&char_arr, 'a'));
+    expectTrue(CharArr_push_back(&char_arr, 'b'));
+    expectTrue(CharArr_push_back(&char_arr, 'c'));
+    expectTrue(CharArr_push_back(&char_arr, 'd'));
+
+    slice = CharArr_slice(&char_arr, 1, 2);
+    expectEQ((void*)slice.arr, &char_arr);
+    expectEQ(slice.size, 2);
+    expectEQ(slice.elements[0], 'b');
+    expectEQ(slice.elements[1], 'c');
+}
+
+//------------------------------------------------
+
+#define NAME StrArr
+#define T char*
+#define ARRAY_IMPLEMENTATION
+#include "array.template.h"
+
+
+TEST_SETUP(str_arr_suite)
+
+TEST_SUITE_SETUP_FN(str_arr_suite)
+{
+    mem_arena_init(&arena);
+}
+
+TEST_SUITE_TEARDOWN_FN(str_arr_suite)
+{
+    mem_arena_free(&arena);
+}
+
+static StrArr str_arr;
+
+TEST_SETUP_FN(str_arr_suite)
+{
+    StrArr_init(&str_arr, &arena);
+}
+
+TEST(str_arr_suite, index_of, "Should scan in str")
+{
+    expectTrue(StrArr_push_back(&str_arr, "First"));
+    expectTrue(StrArr_push_back(&str_arr, "Second"));
+    expectTrue(StrArr_push_back(&str_arr, "Third"));
+    expectTrue(StrArr_push_back(&str_arr, "Forth"));
+
+    expectEQ(StrArr_index_of(&str_arr, "Second"), 1);
+    expectEQ(StrArr_last_index_of(&str_arr, "Second"), 1);
+}
 

@@ -52,6 +52,9 @@
 #define pop_front CAT(NAME, _pop_front)
 #define index_of CAT(NAME, _index_of)
 #define last_index_of CAT(NAME, _last_index_of)
+#define slice CAT(NAME, _slice)
+
+#define NAME_SLICE CAT(NAME, Slice)
 
 
 typedef struct NAME {
@@ -60,6 +63,12 @@ typedef struct NAME {
     T* elements;
     mem_Arena *arena;
 } NAME;
+
+typedef struct NAME_SLICE {
+    NAME *arr; ///< The array this slice applies to
+    T* elements;
+    size_t size;
+} NAME_SLICE;
 
 void init(NAME* arr, mem_Arena* arena);
 bool resize(NAME* arr, size_t capacity);
@@ -71,6 +80,8 @@ T pop_back(NAME* arr);
 T pop_front(NAME* arr);
 int32_t index_of(NAME* arr, T element);
 int32_t last_index_of(NAME* arr, T element);
+NAME_SLICE slice(NAME* arr, size_t start, int32_t len);
+
 
 
 #ifdef ARRAY_IMPLEMENTATION
@@ -183,7 +194,7 @@ T pop_front(NAME* arr)
         return 0;
 
     T element = arr->elements[0];
-    remove(arr, element);
+    remove(arr, 0);
 
     return element;
 }
@@ -208,6 +219,22 @@ int32_t last_index_of(NAME* arr, T element)
     return -1;
 }
 
+NAME_SLICE slice(NAME* arr, size_t start, int32_t len)
+{
+    NAME_SLICE slice = {0};
+    if (arr->size <= start)
+        return slice;
+
+    if (len < 0)
+        len = arr->size-1;
+
+    slice.arr = arr;
+    slice.elements = &arr->elements[start];
+    slice.size = (size_t)len;
+
+    return slice;
+}
+
 
 #endif
 
@@ -221,6 +248,8 @@ int32_t last_index_of(NAME* arr, T element)
 #undef pop_front
 #undef index_of
 #undef last_index_of
+#undef slice
+
 #undef T
 #undef NAME
 
