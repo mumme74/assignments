@@ -10,6 +10,10 @@
 /// used to stringize a value
 #define STR(str) STR_IMPL(str)
 
+#define MIN(a,b) (a)>(b) ? (b) : (a)
+#define MAX(a,b) (a)>(b) ? (a) : (b)
+
+
 /**
  * Catches Ctrl+C and exit gracefully by cleaning up.
  *

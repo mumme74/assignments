@@ -7,6 +7,7 @@ set(SUBDIRS
     testdata
     testengine
     utils
+    ui
 )
 
 foreach(subdir ${SUBDIRS})
@@ -23,7 +24,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}..)
 
 # pupil bin
 add_executable(pupil ${pupil_srcs})
-target_link_libraries(pupil memory)
+target_link_libraries(pupil ${SUBDIRS})
 
 
 # teacher bin
