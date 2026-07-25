@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <ctype.h>
 #include "arena.h"
 #include "document.h"
 #include "terminal.h"
@@ -30,7 +31,7 @@ void ui_redraw(Document* doc)
     // Draw UI boundaries
     ui_one_command(Format.ResetAll);
     ui_one_command(FrontColors.Blue);
-    ui_one_command(BackColors.LightGreen);
+    ui_one_command(BackColors.LightYellow);
     ui_printf("--- ANSI TUI (Press 'q' to quit) ---\n");
     for (int i = 0; i < 10; i++) {
         ui_printf("|                                  |\n");
@@ -40,34 +41,33 @@ void ui_redraw(Document* doc)
     ui_render();
 }
 
-bool ui_frame()
-{
-    char c;
-
-    // 4. Read input
-    if (read(STDIN_FILENO, &c, 1) == 1) {
-        if (c == 'q') return false;
-
-        // Handle WASD movement keys
-        if (c == 'w') ui_move_cursor_vert(-1);
-        if (c == 's') ui_move_cursor_vert(1);
-        if (c == 'a') ui_move_cursor_horz(-1);
-        if (c == 'd') ui_move_cursor_horz(1);
-        if (c == 'p') {printf("print"); fflush(stdout);}
-    }
-
-    return true;
-}
-
 void run_ui(Document *doc)
 {
     ui_enable_raw_mode();
     ui_set_cursor_show(true);
-        ui_redraw(doc);
 
-    bool contin = true;
+    bool contin = true,
+         update_ui = true;
+
     while (contin) {
-        contin = ui_frame(doc);
+        int c;
+        if (update_ui) {
+            update_ui = false;
+            ui_redraw(doc);
+        }
+
+        if ((c = toupper(ui_listen())) > 0) {
+            switch (c) {
+            case 'Q': contin = false; break;
+            case Key_ArrowDown: ui_move_cursor_vert(1); break;
+            case Key_ArrowUp: ui_move_cursor_vert(-1); break;
+            case Key_ArrowLeft: ui_move_cursor_horz(-1); break;
+            case Key_ArrowRight: ui_move_cursor_horz(1); break;
+            case 'P': printf("print"); fflush(stdout); break;
+            default:
+                printf("unhandled: %d  %c\n", c, c);
+            }
+        }
     }
 
     ui_disable_raw_mode();

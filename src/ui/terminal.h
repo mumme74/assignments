@@ -6,6 +6,35 @@
 
 #include "typestring.h"
 
+enum Keys {
+    Key_Tab = 9,
+    Key_Enter = 10,
+    Key_Esc = 27,
+    Key_Del = 127,
+    Key_Home = 10000,
+    Key_F1,
+    Key_F2,
+    Key_F3,
+    Key_F4,
+    Key_F5,
+    Key_F6,
+    Key_F7,
+    Key_F8,
+    Key_F9,
+    Key_F10,
+    Key_F11,
+    Key_F12,
+    Key_End,
+    Key_PgDown,
+    Key_PgUp,
+    Key_Insert,
+    Key_ArrowUp,
+    Key_ArrowDown,
+    Key_ArrowLeft,
+    Key_ArrowRight,
+    Key_ShiftTab,
+};
+
 struct _Format
 {
     const char *Bold,
@@ -98,6 +127,8 @@ void ui_printf_at_pos(int x, int y, const char* format, ...);
 
 void ui_render();
 void ui_clear_screen();
+
+int ui_listen();
 
 void ui_disable_raw_mode();
 void ui_enable_raw_mode();

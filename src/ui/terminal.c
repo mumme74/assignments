@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <ctype.h>
 #include <unistd.h>
 #include <termios.h>
 #include <sys/ioctl.h>
@@ -9,16 +10,17 @@
 #include "terminal.h"
 
 #define BUFFER_SIZE 8192
+#define ESC 27
 
 
 static struct termios orig_termios;
 
 static char buffer[8192] = {0};
 static char *wr_ptr = buffer;
-static int cursor_x = 0,
-           cursor_y = 0,
-           frm_x = 0,
-           frm_y = 0;
+static int cursor_x = 1,
+           cursor_y = 1,
+           frm_x = 1,
+           frm_y = 1;
 static int max_rows = 16,
            max_cols = 80;
 
@@ -48,6 +50,96 @@ static void frm_reset_buffer()
 {
     memset(buffer, 0, BUFFER_SIZE);
     wr_ptr = buffer;
+}
+
+static int esc_bracket1(int c, char seq[])
+{
+    switch (seq[2]) {
+    case '5': return Key_F5;
+    case '7': return Key_F6;
+    case '8': return Key_F7;
+    case '9': return Key_F8;
+    default: return c;
+    }
+}
+
+static int esc_bracket2(int c, char seq[])
+{
+    switch (seq[2]) {
+    case '0': return Key_F9;
+    case '1': return Key_F10;
+    case '3': return Key_F11;
+    case '4': return Key_F12;
+    case '~': return Key_Insert;
+    default: return c;
+    }
+}
+
+static int esc_bracket_letter(int c, char seq[])
+{
+    switch (seq[1]) {
+    case 'A': return Key_ArrowUp;
+    case 'B': return Key_ArrowDown;
+    case 'C': return Key_ArrowRight;
+    case 'D': return Key_ArrowLeft;
+    case 'H': return Key_Home;
+    case 'F': return Key_End;
+    case 'Z': return Key_ShiftTab;
+    default: return c;
+    }
+}
+
+static int esc_O(int c, char seq[])
+{
+    switch (seq[1]) {
+    case 'H': return Key_Home;
+    case 'F': return Key_End;
+    case 'P': return Key_F1;
+    case 'Q': return Key_F2;
+    case 'R': return Key_F3;
+    case 'S': return Key_F4;
+
+    default: return c;
+    }
+}
+
+static int handle_escape_sequence(int c)
+{
+    // escape sequences travel in pairs of up to 4 bytes
+
+    int fd = fileno(stdin);
+
+    char seq[3] = {0};
+
+    // is it an ordinary ESC?
+    if (read(fd, seq, 1) == 0 || read(fd, seq+1, 1) == 0)
+        return Key_Esc;
+
+    // it is an escape sequence, check which
+    if (seq[0] == '[') {
+        if (isdigit(seq[1])) {
+            // extended read third byte
+            if (read(fd, seq+2, 1) == 0)
+                return Key_Esc;
+
+            switch (seq[1]) {
+            case '1': return esc_bracket1(c, seq);
+            case '2': return esc_bracket2(c, seq);
+            case '3': if (seq[2] == '~') return Key_Del;
+                break;
+            case '5': if (seq[2] == '~') return Key_PgUp;
+                break;
+            case '6': if (seq[2] == '~') return Key_PgDown;
+                break;
+            default: return c;
+            }
+        } else
+            return esc_bracket_letter(c, seq);
+
+    } else if (seq[0] == 'O')
+        return esc_O(c, seq);
+
+    return c;
 }
 
 
@@ -196,7 +288,7 @@ void ui_set_cursor_pos(int x, int y)
 void ui_move_cursor_vert(int rows)
 {
     int y = rows < 0
-          ? MAX(0, cursor_y + rows) // up
+          ? MAX(1, cursor_y + rows) // up
           : MIN(max_rows, cursor_y + rows);// down
 
     ui_set_cursor_pos(cursor_x, y);
@@ -205,7 +297,7 @@ void ui_move_cursor_vert(int rows)
 void ui_move_cursor_horz(int cols)
 {
     int x = cols < 0
-        ? MAX(0, cursor_x + cols) // left
+        ? MAX(1, cursor_x + cols) // left
         : MIN(max_cols, cursor_x + cols); // right
 
     ui_set_cursor_pos(x, cursor_y);
@@ -269,7 +361,22 @@ void ui_enable_raw_mode() {
 
     struct termios raw = orig_termios;
     raw.c_lflag &= ~(ECHO | ICANON); // Turn off echo and canonical mode
+    raw.c_cc[VMIN] = 0; // return each byte, or 0 when timeout
+    raw.c_cc[VTIME] = 1; // 100ms wait
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+}
+
+int ui_listen()
+{
+    // based of kilo editor
+    int c;
+
+    if (read(fileno(stdin), &c, 1) > 0) {
+        if (c == ESC)
+           c = handle_escape_sequence(c);
+    }
+
+    return c;
 }
 
 int main1() {
