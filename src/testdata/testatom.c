@@ -10,7 +10,8 @@
 #define CHECK_EQUAL(a,b) \
     a.type == b.type && \
     a.flags == b.flags && \
-    strcmp(a.string.elements, b.string.elements) == 0
+    a.string.size == b.string.size && \
+    strncmp(a.string.elements, b.string.elements, a.string.size) == 0
 #include "array.template.h"
 
 

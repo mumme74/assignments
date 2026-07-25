@@ -36,7 +36,7 @@ Structure of doc
 
 
 Document binary format:
-Every byte except identifier is endian swapped to bigendian
+Every value is endian swapped to bigendian
 
 
 Header:
@@ -45,7 +45,7 @@ Header:
    uint64_t timestamp compiled in unix epoch
    uint8_t  index in persons array that compiled the blob
    uint8_t  version format of this blob
-   uint8_t[5] paddingto 8bytes multiples, might be taken in future
+   uint8_t[6] paddingto 8bytes multiples, might be taken in future
 
 PersonsArr
     uint8_t number of persons in this array

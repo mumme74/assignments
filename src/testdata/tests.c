@@ -7,8 +7,10 @@
 #define NAME TestArr
 #define ARRAY_IMPLEMENTATION
 #define CHECK_EQUAL(a,b) \
-    strcmp(a.identifier.elements, b.identifier.elements) == 0 && \
-    strcmp(a.command.elements, b.command.elements) == 0 && \
+    a.identifier.size == b.identifier.size && \
+    strncmp(a.identifier.elements, b.identifier.elements, a.identifier.size) == 0 && \
+    a.command.size == b.command.size && \
+    strncmp(a.command.elements, b.command.elements, a.command.size) == 0 && \
     a.atoms.size == b.atoms.size
 #include "array.template.h"
 

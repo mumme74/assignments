@@ -13,7 +13,9 @@
 #define NAME StringArr
 #define T String
 #define ARRAY_IMPLEMENTATION
-#define CHECK_EQUAL(a,b) strcmp(a.elements, b.elements) == 0
+#define CHECK_EQUAL(a,b) \
+    a.size == b.size && \
+    strncmp(a.elements, b.elements, a.size) == 0
 #include "array.template.h"
 
 #define NO_TEMPLATE_STRING

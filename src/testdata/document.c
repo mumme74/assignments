@@ -6,33 +6,33 @@
 #include "document.h"
 #include "utils.h"
 
-#define HEADER_PADDING 5
+#define HEADER_PADDING 6
 #define SCRAMBLE 0x24681357
 
 static uint64_t conv64(uint64_t vlu)
 {
     return ((0xFF00000000000000 & vlu) >> 56) |
-           ((0x00FF000000000000 & vlu) >> 48) |
-           ((0x0000FF0000000000 & vlu) << 40) |
-           ((0x000000FF00000000 & vlu) << 32) |
-           ((0x00000000FF000000 & vlu) << 24) |
-           ((0x0000000000FF0000 & vlu) << 16) |
-           ((0x000000000000FF00 & vlu) << 8) |
-           ((0x00000000000000FF & vlu) << 0);
+           ((0x00FF000000000000 & vlu) >> 40) |
+           ((0x0000FF0000000000 & vlu) >> 24) |
+           ((0x000000FF00000000 & vlu) >> 8) |
+           ((0x00000000FF000000 & vlu) << 8) |
+           ((0x0000000000FF0000 & vlu) << 24) |
+           ((0x000000000000FF00 & vlu) << 40) |
+           ((0x00000000000000FF & vlu) << 56);
 }
 
 static uint64_t conv32(uint64_t vlu)
 {
-    return ((0xFF000000 & vlu) << 24) |
-           ((0x00FF0000 & vlu) << 16) |
+    return ((0xFF000000 & vlu) >> 24) |
+           ((0x00FF0000 & vlu) >> 8) |
            ((0x0000FF00 & vlu) << 8) |
-           ((0x000000FF & vlu) << 0);
+           ((0x000000FF & vlu) << 24);
 }
 
 static uint64_t conv16(uint64_t vlu)
 {
-    return ((0xFF00 & vlu) << 16) |
-           ((0x00FF & vlu) << 0);
+    return ((0xFF00 & vlu) >> 8) |
+           ((0x00FF & vlu) << 8);
 }
 
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
@@ -58,52 +58,34 @@ static uint64_t conv16(uint64_t vlu)
 
 #endif
 
-#define read_vlu(vlu, rd_stream) \
-    _Generic((vlu), \
-        uint64_t*: read_uint64(vlu, rd_stream),\
-        uint32_t*: read_uint32(vlu, rd_stream),\
-        uint16_t*: read_uint16(vlu, rd_stream),\
-        uint8_t*:  read_uint8(vlu, rd_stream)  \
-    )
-
-#define write_vlu(vlu, wr_stream) \
-    _Generic((vlu), \
-        uint64_t: write_uint64(vlu, wr_stream),\
-        uint32_t: write_uint32(vlu, wr_stream),\
-        uint16_t: write_uint16(vlu, wr_stream),\
-        uint8_t:  write_uint8(vlu, wr_stream)  \
-    )
-
 static mem_Arena wr_arena;
 
 static bool write_uint64(uint64_t vlu, FILE* wr_stream)
 {
     vlu = TO_BYTE_ORDER(vlu);
-    return fwrite(&vlu, 8, 1, wr_stream) != 8;
+    return fwrite(&vlu, 8, 1, wr_stream) == 1;
 }
 
 static bool write_uint32(uint32_t vlu, FILE* wr_stream)
 {
     vlu = TO_BYTE_ORDER(vlu);
-    return fwrite(&vlu, 4, 1, wr_stream) != 4;
+    return fwrite(&vlu, 4, 1, wr_stream) == 1;
 }
 
 static bool write_uint16(uint16_t vlu, FILE* wr_stream)
 {
     vlu = TO_BYTE_ORDER(vlu);
-    return fwrite(&vlu, 2, 1, wr_stream) != 2;
+    return fwrite(&vlu, 2, 1, wr_stream) == 1;
 }
 
 static bool write_uint8(uint8_t vlu, FILE* wr_stream)
 {
     vlu = TO_BYTE_ORDER(vlu);
-    return fwrite(&vlu, 1, 1, wr_stream) != 1;
+    return fwrite(&vlu, 1, 1, wr_stream) == 1;
 }
 
 static bool write_string(String* string, FILE* wr_stream)
 {
-    uint32_t len = string->size+1;
-
     if (!write_uint32(string->size, wr_stream))
         return false;
 
@@ -112,7 +94,7 @@ static bool write_string(String* string, FILE* wr_stream)
     if (!String_scramble(&scrambled, string, SCRAMBLE))
         return false;
 
-    if (fwrite(scrambled.elements, 1, len, wr_stream) != len)
+    if (fwrite(scrambled.elements, 1, string->size, wr_stream) != string->size)
         return false;
 
     return true;
@@ -120,7 +102,7 @@ static bool write_string(String* string, FILE* wr_stream)
 
 static bool write_person(Person* person, FILE* wr_stream)
 {
-    if (write_uint32(person->roles_mask, wr_stream))
+    if (!write_uint32(person->roles_mask, wr_stream))
         return false;
 
     if (!write_string(&person->name, wr_stream))
@@ -134,10 +116,10 @@ static bool write_person(Person* person, FILE* wr_stream)
 
 static bool write_test_atom(TestAtom* atom, FILE* wr_stream)
 {
-    if (write_uint32(atom->type, wr_stream))
+    if (!write_uint32(atom->type, wr_stream))
         return false;
 
-    if (write_uint32(atom->flags, wr_stream))
+    if (!write_uint32(atom->flags, wr_stream))
         return false;
 
     return write_string(&atom->string, wr_stream);
@@ -164,8 +146,7 @@ static bool write_test(Test* test, FILE* wr_stream)
 
 static bool write_header(DocHeader *hdr, FILE* wr_stream)
 {
-    // don't byte order swap identifier
-    if (fwrite(&hdr->identifier, sizeof(hdr->identifier), 1, wr_stream) != 4)
+    if (!write_uint32(hdr->identifier, wr_stream))
         return false;
 
     if (!write_uint32(hdr->byte_len, wr_stream))
@@ -182,8 +163,8 @@ static bool write_header(DocHeader *hdr, FILE* wr_stream)
         return false;
 
     // padding
-    uint8_t byte = 0x5A;
-    return fwrite(&byte, 1, HEADER_PADDING, wr_stream) == HEADER_PADDING;
+    uint8_t byte[HEADER_PADDING] = {0x5A};
+    return fwrite(byte, 1, HEADER_PADDING, wr_stream) == HEADER_PADDING;
 }
 
 static bool write_persons(PersonArr* persons, FILE* wr_stream)
@@ -222,7 +203,7 @@ static bool write_sessions(TestArr* sessions, FILE* wr_stream)
 
 static bool read_uint64(uint64_t *vlu, FILE* rd_stream)
 {
-    if (fread(vlu, 8, 1, rd_stream) != 8)
+    if (fread(vlu, 8, 1, rd_stream) != 1)
         return false;
     *vlu = TO_BYTE_ORDER(*vlu);
 
@@ -231,7 +212,7 @@ static bool read_uint64(uint64_t *vlu, FILE* rd_stream)
 
 static bool read_uint32(uint32_t* vlu, FILE* rd_stream)
 {
-    if (fread(vlu, 4, 1, rd_stream) != 4)
+    if (fread(vlu, 4, 1, rd_stream) != 1)
         return false;
     *vlu = TO_BYTE_ORDER(*vlu);
 
@@ -240,7 +221,7 @@ static bool read_uint32(uint32_t* vlu, FILE* rd_stream)
 
 static bool read_uint16(uint16_t *vlu, FILE* rd_stream)
 {
-    if (fread(vlu, 2, 1, rd_stream) != 2)
+    if (fread(vlu, 2, 1, rd_stream) != 1)
         return false;
     *vlu = TO_BYTE_ORDER(*vlu);
 
@@ -259,7 +240,7 @@ static bool read_uint8(uint8_t *vlu, FILE* rd_stream)
 static bool read_string(String* string, FILE* rd_stream)
 {
     uint32_t size;
-    if (read_uint32(&size, rd_stream))
+    if (!read_uint32(&size, rd_stream))
         return false;
     String_resize(string, size+1);
 
@@ -306,6 +287,8 @@ static bool read_test(Test* test, FILE* rd_stream)
         TestAtom_init(&atom, test->atoms.arena);
         if (!read_atom(&atom, rd_stream))
             return false;
+
+        TestAtomArr_push_back(&test->atoms, atom);
     }
 
     return true;
@@ -324,12 +307,10 @@ static bool read_person(Person* person, FILE* rd_stream)
 
 static bool read_header(DocHeader* hdr, FILE* rd_stream)
 {
-    // identifier, don't do byte order swap!
-    uint32_t vlu32;
-    if (fread(&vlu32, sizeof(vlu32), 1, rd_stream) != sizeof(vlu32))
+    if (!read_uint32(&hdr->identifier, rd_stream))
         return false;
 
-    if (vlu32 != DOC_HDR_IDENTIFIER) {
+    if (hdr->identifier != DOC_HDR_IDENTIFIER) {
         write_error("Document format not identified");
         return false;
     }
@@ -364,9 +345,10 @@ static bool read_header(DocHeader* hdr, FILE* rd_stream)
 static bool read_persons(PersonArr* persons, FILE* rd_stream)
 {
     uint8_t cnt;
-    if (read_uint8(&cnt, rd_stream))
+    if (!read_uint8(&cnt, rd_stream))
         return false;
-    PersonArr_resize(persons, TO_BYTE_ORDER(cnt));
+    if (!PersonArr_resize(persons, TO_BYTE_ORDER(cnt)))
+        return false;
 
     for (uint8_t i = 0; i < cnt; ++i) {
         Person person;
@@ -375,7 +357,8 @@ static bool read_persons(PersonArr* persons, FILE* rd_stream)
         if (!read_person(&person, rd_stream))
             return false;
 
-        PersonArr_push_back(persons, person);
+        if (!PersonArr_push_back(persons, person))
+            return false;
     }
 
     return true;
@@ -384,7 +367,7 @@ static bool read_persons(PersonArr* persons, FILE* rd_stream)
 static bool read_sessions(TestArr* sessions, FILE* rd_stream)
 {
     uint32_t count;
-    if (read_uint32(&count, rd_stream))
+    if (!read_uint32(&count, rd_stream))
         return false;
 
     for (uint32_t i = 0; i < count; ++i) {
@@ -393,6 +376,7 @@ static bool read_sessions(TestArr* sessions, FILE* rd_stream)
 
         if (!read_test(&test, rd_stream))
             return false;
+        TestArr_push_back(sessions, test);
     }
 
     return true;
@@ -441,6 +425,7 @@ bool Document_write(Document* doc, FILE* wr_stream, Person* compiler)
     }
 
     mem_arena_init(&wr_arena);
+    long start_pos = ftell(wr_stream);
 
     do { // bust out block
         if (!write_header(&doc->header, wr_stream))
@@ -450,7 +435,15 @@ bool Document_write(Document* doc, FILE* wr_stream, Person* compiler)
         if (!write_sessions(&doc->test_sessions, wr_stream))
             break;
 
+        // now that we know size, we save that in the header
+        uint32_t bytes = ftell(wr_stream) - start_pos;
+        fseek(wr_stream, start_pos+4, SEEK_SET);
+        if (!write_uint32(bytes, wr_stream))
+            break;
+        fseek(wr_stream, 0, SEEK_END);
+
         mem_arena_free(&wr_arena);
+        fflush(wr_stream);
 
         return true;
 

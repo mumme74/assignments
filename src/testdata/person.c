@@ -10,8 +10,10 @@
 #define ARRAY_IMPLEMENTATION
 #define CHECK_EQUAL(a,b) \
     a.roles_mask == b.roles_mask && \
-    strcmp(a.name.elements, b.name.elements) == 0 && \
-    strcmp(a.email.elements, b.email.elements) == 0
+    a.name.size == b.name.size && \
+    strncmp(a.name.elements, b.name.elements, a.name.size) == 0 && \
+    a.email.size == b.email.size && \
+    strncmp(a.email.elements, b.email.elements, a.email.size) == 0
 #include "array.template.h"
 
 
