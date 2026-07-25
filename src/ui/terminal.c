@@ -16,9 +16,13 @@ static struct termios orig_termios;
 static char buffer[8192] = {0};
 static char *wr_ptr = buffer;
 static int cursor_x = 0,
-           cursor_y = 0;
+           cursor_y = 0,
+           frm_x = 0,
+           frm_y = 0;
 static int max_rows = 16,
            max_cols = 80;
+
+static bool show_cursor = true;
 
 static void update_win_size()
 {
@@ -29,6 +33,23 @@ static void update_win_size()
     max_cols = win.ws_col;
     max_rows = win.ws_row;
 }
+
+static void frm_top_left()
+{
+    wr_ptr += sprintf(wr_ptr, "\x1b[H");
+}
+
+static void frm_hide_cursor(bool hide)
+{
+    wr_ptr += sprintf(wr_ptr, hide ? "\x1b[?25l" : "\x1b[?25h");
+}
+
+static void frm_reset_buffer()
+{
+    memset(buffer, 0, BUFFER_SIZE);
+    wr_ptr = buffer;
+}
+
 
 // ------------------------------------------------------------
 
@@ -95,9 +116,7 @@ const struct _BackColors BackColors = {
 
 void ui_one_command(const char* command)
 {
-    size_t sz = strnlen(command, 20);
-    snprintf(wr_ptr, sz, "\x1b[%s", command);
-    wr_ptr += sz;
+    wr_ptr += sprintf(wr_ptr, "\x1b[%sm", command);
 }
 
 void ui_many_commands(StringArr* arr)
@@ -117,11 +136,36 @@ void ui_many_commands(StringArr* arr)
     snprintf(wr_ptr++, 2, "m");
 }
 
+void ui_frm_get_pos(int* x, int* y)
+{
+    *x = frm_x;
+    *y = frm_y;
+}
+
+void ui_frm_set_pos(int x, int y)
+{
+    frm_x = MAX(0, MIN(x, max_cols));
+    frm_y = MAX(0, MIN(y, max_rows));
+    wr_ptr += sprintf(wr_ptr, "\x1b[%d;%dH", frm_y, frm_x);
+}
+
 void ui_printf(const char* format, ...)
 {
     va_list args;
     va_start(args, format);
     wr_ptr += vsnprintf(wr_ptr, BUFFER_SIZE, format, args);
+    va_end(args);
+}
+
+
+void ui_printf_at_pos(int x, int y, const char* format, ...)
+{
+    va_list args;
+    va_start(args, format);
+
+    ui_frm_set_pos(x, y);
+    wr_ptr += vsnprintf(wr_ptr, BUFFER_SIZE, format, args);
+
     va_end(args);
 }
 
@@ -151,36 +195,25 @@ void ui_set_cursor_pos(int x, int y)
 
 void ui_move_cursor_vert(int rows)
 {
-    update_win_size();
+    int y = rows < 0
+          ? MAX(0, cursor_y + rows) // up
+          : MIN(max_rows, cursor_y + rows);// down
 
-    if (rows < 0) { // up
-        cursor_y = MAX(0, cursor_y + rows);
-        printf("\x1b[%dA", cursor_y);
-    } else if (rows > 0) { // down
-        cursor_y = MIN(max_rows, cursor_y + rows);
-        printf("\x1b[%dB", cursor_y);
-    }
-    fflush(stdout);
+    ui_set_cursor_pos(cursor_x, y);
 }
 
 void ui_move_cursor_horz(int cols)
 {
-    update_win_size();
+    int x = cols < 0
+        ? MAX(0, cursor_x + cols) // left
+        : MIN(max_cols, cursor_x + cols); // right
 
-    if (cols < 0) { // left
-        cursor_x = MAX(0, cursor_x + cols);
-        printf("\x1b[%dD", cursor_x);
-    } else if (cols > 0) { // right
-        cursor_x = MIN(max_cols, cursor_x + cols);
-        printf("\x1b[%dC", cursor_x);
-    }
-    fflush(stdout);
+    ui_set_cursor_pos(x, cursor_y);
 }
 
 void ui_set_cursor_show(bool show)
 {
-    printf("%s", show ? "\x1b[?25h" : "\x1b[?25l");
-    fflush(stdout);
+    show_cursor = show;
 }
 
 
@@ -188,8 +221,8 @@ void ui_clear_screen()
 {
     update_win_size();
 
-    // Clear screen
-    printf("\x1b[H");
+    printf("\x1b[H%s", show_cursor ? "\x1b[?25l" : "");
+
     for (int i = 0; i < max_rows; ++i) {
         for (int j = 0; j < max_cols; ++j) {
             putc(' ', stdout);
@@ -197,23 +230,35 @@ void ui_clear_screen()
         if (i < max_rows-1)
             putc('\n', stdout);
     }
-    printf("\x1b[H");
+
+    printf("\x1b[H%s", show_cursor ? "\x1b[?25h": "");
+
     fflush(stdout);
 }
 
 void ui_render()
 {
+    if (show_cursor)
+        frm_hide_cursor(false);
+
+    // write this frame
     ui_clear_screen();
-    fwrite(buffer, BUFFER_SIZE, 1, stdout);
-    wr_ptr = buffer;
-    printf("\x1b[%d;%dH", cursor_y, cursor_x);
+
+    frm_top_left();
+    printf("%s", buffer);
+    printf("\x1b[%d;%dH\x1b[?25h", cursor_y, cursor_x);
     fflush(stdout);
+
+    // from now on every thing is done off screen till next frame render
+    frm_reset_buffer();
+    if (show_cursor)
+        frm_hide_cursor(true);
 }
 
 // Restore terminal to normal mode on exit
 void ui_disable_raw_mode() {
     update_win_size();
-    printf("\x1b[%d;%dH\n", max_rows, max_cols);
+    printf("\x1b[%d;%dH\x1b[0m\n", max_rows, max_cols);
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
 }
 
@@ -231,6 +276,7 @@ int main1() {
     ui_enable_raw_mode();
     int x = 5, y = 5;
     char c;
+    (void)frm_top_left;
 
     while (1) {
         // 1. Clear screen and reset cursor

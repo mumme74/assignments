@@ -28,6 +28,9 @@ void ui_redraw(Document* doc)
 {
     (void)doc;
     // Draw UI boundaries
+    ui_one_command(Format.ResetAll);
+    ui_one_command(FrontColors.Blue);
+    ui_one_command(BackColors.LightGreen);
     ui_printf("--- ANSI TUI (Press 'q' to quit) ---\n");
     for (int i = 0; i < 10; i++) {
         ui_printf("|                                  |\n");
@@ -39,11 +42,6 @@ void ui_redraw(Document* doc)
 
 bool ui_frame()
 {
-    // 3. Move cursor and draw interactive element
-    // \x1b[%d;%dH moves cursor to line Y, column X
-    //printf("\x1b[%d;%dH\x1b[1;32m@\x1b[0m", y, x);
-    //fflush(stdout);
-
     char c;
 
     // 4. Read input
@@ -65,10 +63,10 @@ void run_ui(Document *doc)
 {
     ui_enable_raw_mode();
     ui_set_cursor_show(true);
+        ui_redraw(doc);
 
     bool contin = true;
     while (contin) {
-        ui_redraw(doc);
         contin = ui_frame(doc);
     }
 

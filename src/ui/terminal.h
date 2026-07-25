@@ -76,19 +76,24 @@ struct _BackColors {
 /// Colors to render background with
 extern const struct _BackColors BackColors;
 
+// acts on frame
 void ui_many_commands(StringArr* commands);
 void ui_one_command(const char* command);
 
-void ui_get_cursor_pos(int* x, int *y);
 void ui_get_screen_size(int* cols, int* rows);
 
+// acts on screen shown
+void ui_get_cursor_pos(int* x, int *y);
 void ui_set_cursor_pos(int x, int y);
 void ui_set_cursor_show(bool show);
 void ui_move_cursor_vert(int rows);
 void ui_move_cursor_horz(int cols);
 
 
+void ui_frm_get_pos(int* x, int* y);
+void ui_frm_set_pos(int x, int y);
 void ui_printf(const char* format, ...);
+void ui_printf_at_pos(int x, int y, const char* format, ...);
 
 
 void ui_render();
