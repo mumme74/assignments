@@ -216,6 +216,17 @@ TEST(char_arr_suite, concat, "Test Concat")
     expectGTE(char_arr.capacity, 11);
 }
 
+TEST(char_arr_suite, at, "Test at")
+{
+    CharArr_push_back(&char_arr, 'a');
+    CharArr_push_back(&char_arr, 'b');
+    CharArr_push_back(&char_arr, 'c');
+    expectEQ(CharArr_at(&char_arr, 0), 'a');
+    expectEQ(CharArr_at(&char_arr, 1), 'b');
+    expectEQ(CharArr_at(&char_arr, 2), 'c');
+    expectEQ(CharArr_at(&char_arr, 3), '\0');
+}
+
 //------------------------------------------------
 
 #define NAME StrArr
