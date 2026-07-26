@@ -23,6 +23,21 @@ TEST_SETUP_FN(str_suite)
     String_init(&str, &arena);
 }
 
+TEST(str_suite, str_set, "Should set string")
+{
+    char buf[] = "Set this string";
+    size_t sz = strlen(buf);
+    expectTrue(String_set(&str, buf, sz));
+    expectEQ(str.size, sz);
+    expectEQ(str.elements, buf);
+
+    char buf2[] = "Test 2";
+    size_t sz2 = strlen(buf2);
+    expectTrue(String_set(&str, buf2, sz2));
+    expectEQ(str.size, sz2);
+    expectEQ(str.elements, buf2);
+}
+
 TEST(str_suite, str_append, "Should append cstr")
 {
     char buf[] = "Append this string";

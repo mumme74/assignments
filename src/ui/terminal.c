@@ -52,6 +52,18 @@ static void frm_reset_buffer()
     wr_ptr = buffer;
 }
 
+static void save_screen()
+{
+    printf("\x1b[?1049h");
+    fflush(stdout);
+}
+
+static void restore_screen()
+{
+    printf("\x1b[?1049l");
+    fflush(stdout);
+}
+
 static int esc_bracket1(int c, char seq[])
 {
     switch (seq[2]) {
@@ -206,26 +218,23 @@ const struct _BackColors BackColors = {
 
 // ---------------------------------------
 
-void ui_one_command(const char* command)
+void ui_one_format(const char* command)
 {
     wr_ptr += sprintf(wr_ptr, "\x1b[%sm", command);
 }
 
-void ui_many_commands(StringArr* arr)
+void ui_formats(const char *formats[], size_t size)
 {
-    snprintf(wr_ptr, 3, "\x1b[");
-    wr_ptr += 2;
+    if (size == 0) return;
 
-    for (size_t i = 0; i < arr->size; ++i) {
-        if (i > 0)
-            snprintf(wr_ptr++, 2, ";");
+    wr_ptr += sprintf(wr_ptr, "\x1b[%s", formats[0]);
 
-        size_t sz = arr->elements[i].size;
-        snprintf(wr_ptr, sz+1, "%s", arr->elements[i].elements);
-        wr_ptr += sz;
+    for (size_t i = 1; i < size; ++i) {
+        snprintf(wr_ptr++, 2, ";");
+        wr_ptr += sprintf(wr_ptr, "%s", formats[i]);
     }
 
-    snprintf(wr_ptr++, 2, "m");
+    wr_ptr += sprintf(wr_ptr, "m");
 }
 
 void ui_frm_get_pos(int* x, int* y)
@@ -303,11 +312,22 @@ void ui_move_cursor_horz(int cols)
     ui_set_cursor_pos(x, cursor_y);
 }
 
+void ui_set_scrollable_rows(int start, int end)
+{
+    printf("\x1b[%d;%dr", start, end);
+    fflush(stdout);
+}
+
+void ui_unset_scrollable_rows()
+{
+    printf("\x1b[r");
+    fflush(stdout);
+}
+
 void ui_set_cursor_show(bool show)
 {
     show_cursor = show;
 }
-
 
 void ui_clear_screen()
 {
@@ -316,11 +336,7 @@ void ui_clear_screen()
     printf("\x1b[H%s", show_cursor ? "\x1b[?25l" : "");
 
     for (int i = 0; i < max_rows; ++i) {
-        for (int j = 0; j < max_cols; ++j) {
-            putc(' ', stdout);
-        }
-        if (i < max_rows-1)
-            putc('\n', stdout);
+        printf("\x1b[2K\x1b[B"); // clear whole line
     }
 
     printf("\x1b[H%s", show_cursor ? "\x1b[?25h": "");
@@ -338,7 +354,7 @@ void ui_render()
 
     frm_top_left();
     printf("%s", buffer);
-    printf("\x1b[%d;%dH\x1b[?25h", cursor_y, cursor_x);
+    printf("\x1b[%d;%dH", cursor_y, cursor_x);
     fflush(stdout);
 
     // from now on every thing is done off screen till next frame render
@@ -352,10 +368,12 @@ void ui_disable_raw_mode() {
     update_win_size();
     printf("\x1b[%d;%dH\x1b[0m\n", max_rows, max_cols);
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
+    restore_screen();
 }
 
 // Enable raw mode: disable echo and buffering
 void ui_enable_raw_mode() {
+    save_screen();
     tcgetattr(STDIN_FILENO, &orig_termios);
     atexit(ui_disable_raw_mode);
 
@@ -378,41 +396,3 @@ int ui_listen()
 
     return c;
 }
-
-int main1() {
-    ui_enable_raw_mode();
-    int x = 5, y = 5;
-    char c;
-    (void)frm_top_left;
-
-    while (1) {
-        // 1. Clear screen and reset cursor
-        printf("\x1b[2J\x1b[H");
-
-        // 2. Draw UI boundaries
-        printf("--- ANSI TUI (Press 'q' to quit) ---\n");
-        for (int i = 0; i < 10; i++) {
-            printf("|                                  |\n");
-        }
-        printf("------------------------------------\n");
-
-        // 3. Move cursor and draw interactive element
-        // \x1b[%d;%dH moves cursor to line Y, column X
-        printf("\x1b[%d;%dH\x1b[1;32m@\x1b[0m", y, x);
-        fflush(stdout);
-
-        // 4. Read input
-        if (read(STDIN_FILENO, &c, 1) == 1) {
-            if (c == 'q') break;
-
-            // Handle WASD movement keys
-            if (c == 'w' && y > 2) y--;
-            if (c == 's' && y < 11) y++;
-            if (c == 'a' && x > 2) x--;
-            if (c == 'd' && x < 35) x++;
-        }
-    }
-    return 0;
-}
-
-#include "terminal.h"

@@ -227,6 +227,16 @@ TEST(char_arr_suite, at, "Test at")
     expectEQ(CharArr_at(&char_arr, 3), '\0');
 }
 
+TEST(char_arr_suite, clear_arr, "Test clear")
+{
+    CharArr_push_back(&char_arr, 'a');
+    CharArr_push_back(&char_arr, 'b');
+    CharArr_push_back(&char_arr, 'c');
+    CharArr_clear(&char_arr);
+    expectEQ(char_arr.size, 0);
+    expectEQ(char_arr.elements[0], '\0');
+}
+
 //------------------------------------------------
 
 #define NAME StrArr

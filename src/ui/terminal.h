@@ -106,8 +106,12 @@ struct _BackColors {
 extern const struct _BackColors BackColors;
 
 // acts on frame
-void ui_many_commands(StringArr* commands);
-void ui_one_command(const char* command);
+
+/**
+ * Sets format and/or color
+ */
+void ui_formats(const char *formats[], size_t size);
+void ui_one_format(const char* format);
 
 void ui_get_screen_size(int* cols, int* rows);
 
@@ -117,6 +121,8 @@ void ui_set_cursor_pos(int x, int y);
 void ui_set_cursor_show(bool show);
 void ui_move_cursor_vert(int rows);
 void ui_move_cursor_horz(int cols);
+void ui_set_scrollable_rows(int start, int end);
+void ui_unset_scrollable_rows();
 
 
 void ui_frm_get_pos(int* x, int* y);

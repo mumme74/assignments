@@ -5,6 +5,7 @@
 #include "arena.h"
 #include "document.h"
 #include "terminal.h"
+#include "utils.h"
 
 Document* read_doc(const char* filepath)
 {
@@ -25,20 +26,55 @@ Document* read_doc(const char* filepath)
     return NULL;
 }
 
+int start = 0, cur_row = 0;
 void ui_redraw(Document* doc)
 {
     (void)doc;
     // Draw UI boundaries
-    ui_one_command(Format.ResetAll);
-    ui_one_command(FrontColors.Blue);
-    ui_one_command(BackColors.LightYellow);
+    int rows, cols, i;
+    ui_get_screen_size(&cols, &rows);
+
+    // header
+    ui_one_format(Format.ResetAll);
+    ui_one_format(FrontColors.White);
+    ui_one_format(BackColors.LightBlue);
     ui_printf("--- ANSI TUI (Press 'q' to quit) ---\n");
-    for (int i = 0; i < 10; i++) {
-        ui_printf("|                                  |\n");
+    ui_one_format(Format.ResetAll);
+    //ui_set_scrollable_rows(1, cols);
+
+    int end = start + rows - 2;
+    for (i = start; i < (MIN(end, 100)); i++) {
+        ui_printf("|                    %d              |\n", i);
     }
-    ui_printf("------------------------------------\n");
+    ui_printf("------------------------------------");
 
     ui_render();
+}
+
+void scroll(int c) {
+    int cols, rows, x, y;
+    ui_get_screen_size(&cols, &rows);
+    ui_get_cursor_pos(&x, &y);
+
+    switch (c) {
+    case Key_ArrowLeft: ui_move_cursor_horz(-1); break;
+    case Key_ArrowRight: ui_move_cursor_horz(1); break;
+    case Key_ArrowUp:
+        cur_row = MAX(0, cur_row-1);
+        if (cur_row < start)
+            start--;
+        if (y > 2)
+            ui_move_cursor_vert(-1);
+        break;
+    case Key_ArrowDown:
+        cur_row = MIN(100, cur_row+1);
+        if (cur_row > start + rows -3)
+            start++;
+        if (y < rows)
+            ui_move_cursor_vert(1);
+        break;
+    default: break;
+    }
 }
 
 void run_ui(Document *doc)
@@ -57,15 +93,14 @@ void run_ui(Document *doc)
         }
 
         if ((c = toupper(ui_listen())) > 0) {
+            scroll(c);
+            update_ui = true;
+
             switch (c) {
             case 'Q': contin = false; break;
-            case Key_ArrowDown: ui_move_cursor_vert(1); break;
-            case Key_ArrowUp: ui_move_cursor_vert(-1); break;
-            case Key_ArrowLeft: ui_move_cursor_horz(-1); break;
-            case Key_ArrowRight: ui_move_cursor_horz(1); break;
             case 'P': printf("print"); fflush(stdout); break;
-            default:
-                printf("unhandled: %d  %c\n", c, c);
+            default: break;
+                //printf("unhandled: %d  %c\n", c, c);
             }
         }
     }

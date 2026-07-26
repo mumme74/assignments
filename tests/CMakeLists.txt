@@ -10,6 +10,7 @@ set(SUBDIRS
     testdata
     testengine
     utils
+    ui
 )
 set(SRC_DIR ${CMAKE_SOURCE_DIR}/src/)
 
