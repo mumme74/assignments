@@ -6,6 +6,13 @@ static mem_Arena arena;
 static ui_Window win;
 static ui_Wrapper *ctl;
 
+static ui_Wrapper* create_ctrl(enum ui_ControlType type)
+{
+    ui_Wrapper *ctl = ui_window_new_control(&win, type);
+    ui_window_append(&win, ctl);
+    return ctl;
+}
+
 TEST_SETUP(ctl_suite)
 
 TEST_SUITE_SETUP_FN(ctl_suite)
@@ -42,6 +49,7 @@ TEST(ctl_suite, win_create_lbl, "Test create label")
     expectEQ((void*)ctl->window, &win);
     expectEQ((void*)ctl->parent, NULL);
     expectEQ((void*)ctl->next_sibling, NULL);
+    expectEQ((void*)ctl->prev_sibling, NULL);
     expectEQ((void*)ctl->first_child, NULL);
     expectEQ(ctl->type, UI_LabelType);
     expectFalse((void*)ctl->dirty);
@@ -66,6 +74,7 @@ TEST(ctl_suite, win_create_btn, "Test create Button")
     expectEQ((void*)ctl->window, &win);
     expectEQ((void*)ctl->parent, NULL);
     expectEQ((void*)ctl->next_sibling, NULL);
+    expectEQ((void*)ctl->prev_sibling, NULL);
     expectEQ((void*)ctl->first_child, NULL);
     expectEQ(ctl->type, UI_ButtonType);
     expectFalse((void*)ctl->dirty);
@@ -139,9 +148,13 @@ TEST(ctl_suite, win_append, "Should append")
     ui_window_append(&win, ctl3);
     expectEQ((void*)win.root, ctl);
     expectEQ((void*)ctl->next_sibling, ctl1);
+    expectEQ((void*)ctl->prev_sibling, NULL);
     expectEQ((void*)ctl1->next_sibling, ctl2);
+    expectEQ((void*)ctl1->prev_sibling, ctl);
     expectEQ((void*)ctl2->next_sibling, ctl3);
+    expectEQ((void*)ctl2->prev_sibling, ctl1);
     expectEQ((void*)ctl3->next_sibling, NULL);
+    expectEQ((void*)ctl3->prev_sibling, ctl2);
 }
 
 TEST(ctl_suite, win_remove_ctl, "Test remove")
@@ -158,13 +171,16 @@ TEST(ctl_suite, win_remove_ctl, "Test remove")
 
     ui_window_remove(&win, ctl3);
     expectEQ((void*)ctl2->next_sibling, NULL);
+    expectEQ((void*)ctl2->prev_sibling, ctl1);
     expectEQ((void*)win.root, ctl);
 
     ui_window_remove(&win, ctl);
     expectEQ((void*)win.root, ctl1);
+    expectEQ((void*)ctl1->prev_sibling, NULL);
 
     ui_window_remove(&win, ctl2);
     expectEQ((void*)ctl1->next_sibling, NULL);
+    expectEQ((void*)ctl1->prev_sibling, NULL);
     expectEQ((void*)win.root, ctl1);
 
     ui_window_remove(&win, ctl1);
@@ -185,6 +201,7 @@ TEST(ctl_suite, cont_insert, "Test control insert")
     expectEQ((void*)cont->first_child, ctl);
     expectEQ((void*)ctl->parent, cont);
     expectEQ((void*)ctl->next_sibling, NULL);
+    expectEQ((void*)ctl->prev_sibling, NULL);
     expectEQ((void*)ctl->first_child, NULL);
 
     // 0=textedit, 1=label
@@ -192,7 +209,9 @@ TEST(ctl_suite, cont_insert, "Test control insert")
     expectEQ((void*)cont->first_child, ctl1);
     expectEQ((void*)ctl->parent, cont);
     expectEQ((void*)ctl->next_sibling, NULL);
+    expectEQ((void*)ctl->prev_sibling, ctl1);
     expectEQ((void*)ctl1->next_sibling, ctl);
+    expectEQ((void*)ctl1->prev_sibling, NULL);
     expectEQ((void*)ctl1->parent, cont);
     expectEQ((void*)ctl1->first_child, NULL);
     expectEQ((void*)ctl->first_child, NULL);
@@ -201,8 +220,11 @@ TEST(ctl_suite, cont_insert, "Test control insert")
     ui_control_insert(cont, ctl2, 1);
     expectEQ((void*)cont->first_child, ctl1);
     expectEQ((void*)ctl1->next_sibling, ctl2);
+    expectEQ((void*)ctl1->prev_sibling, NULL);
     expectEQ((void*)ctl2->next_sibling, ctl);
+    expectEQ((void*)ctl2->prev_sibling, ctl1);
     expectEQ((void*)ctl->next_sibling, NULL);
+    expectEQ((void*)ctl->prev_sibling, ctl2);
     expectEQ((void*)ctl2->first_child, NULL);
     expectEQ((void*)ctl1->first_child, NULL);
     expectEQ((void*)ctl->first_child, NULL);
@@ -212,6 +234,7 @@ TEST(ctl_suite, cont_insert, "Test control insert")
     expectEQ((void*)cont->first_child, ctl1);
     expectEQ((void*)ctl->next_sibling, ctl3);
     expectEQ((void*)ctl3->next_sibling, NULL);
+    expectEQ((void*)ctl3->prev_sibling, ctl);
     expectEQ((void*)ctl3->first_child, NULL);
     expectEQ((void*)ctl2->first_child, NULL);
     expectEQ((void*)ctl1->first_child, NULL);
@@ -263,5 +286,108 @@ TEST(ctl_suite, control_remove_ctl, "Test control remove")
 
     ui_control_remove(cont, ctl1);
     expectEQ((void*)cont->first_child, NULL);
-
 }
+
+TEST(ctl_suite, get_bounds, "Should get bounds")
+{
+    ui_Wrapper *btn = ui_window_new_control(&win, UI_ButtonType),
+              *lbl = ui_window_new_control(&win, UI_LabelType),
+              *cont = ui_window_new_control(&win, UI_ContainerType);
+    ui_window_append(&win, cont);
+    ui_control_append(cont, lbl);
+    ui_control_append(cont, btn);
+
+    ui_rect_set(&cont->rect, 1, 10, 6, 6);
+    ui_rect_set(&btn->rect, 3, 4, 40, 7);
+    ui_rect_set(&lbl->rect, 2, 5, 20, 9);
+    ui_RenderRect rect = ui_control_get_bounds(cont);
+
+    expectEQ(rect.top_left.x, 1);
+    expectEQ(rect.top_left.y, 4);
+    expectEQ(rect.bottom_right.x, 40);
+    expectEQ(rect.bottom_right.y, 9);
+}
+
+TEST(ctl_suite, set_bounds, "Should set bounds")
+{
+    ui_Wrapper *btn = ui_window_new_control(&win, UI_ButtonType),
+              *lbl = ui_window_new_control(&win, UI_LabelType),
+              *cont = ui_window_new_control(&win, UI_ContainerType);
+    ui_window_append(&win, cont);
+    ui_control_append(cont, btn);
+    ui_control_append(cont, lbl);
+
+    ui_rect_set(&btn->rect, 3, 4, 40, 7);
+    ui_rect_set(&lbl->rect, 2, 5, 20, 9);
+    ui_rect_set(&cont->rect, 10, 6, 11, 6);
+    ui_RenderRect rect = ui_control_get_bounds(cont);
+
+    expectEQ(rect.top_left.x, 2);
+    expectEQ(rect.top_left.y, 4);
+    expectEQ(rect.bottom_right.x, 40);
+    expectEQ(rect.bottom_right.y, 9);
+}
+
+TEST(ctl_suite, set_taborder, "Test setting taborder")
+{
+    ui_Wrapper *btn = create_ctrl(UI_ButtonType),
+              *lbl = create_ctrl(UI_LabelType),
+              *cont = create_ctrl(UI_ContainerType),
+              *list = create_ctrl(UI_ListType);
+
+    expectTrue(ui_window_set_taborder(&win, list));
+    expectEQ((void*)win.first_tab_order->next, win.first_tab_order);
+    expectFalse(ui_window_set_taborder(&win, list));
+    expectFalse(ui_window_set_taborder(&win, cont));
+    expectFalse(ui_window_set_taborder(&win, lbl));
+    expectTrue(ui_window_set_taborder(&win, btn));
+    expectEQ((void*)win.first_tab_order->control, list);
+    expectEQ((void*)win.first_tab_order->next->control, btn);
+    expectEQ((void*)win.first_tab_order->next->next, win.first_tab_order);
+}
+
+TEST(ctl_suite, nav_fw, "Test without taborder")
+{
+    ui_Wrapper *btn1 = ui_window_new_control(&win, UI_ButtonType),
+              *edit1 = ui_window_new_control(&win, UI_TextEditType),
+              *lbl1 = ui_window_new_control(&win, UI_LabelType),
+              *btn2 = ui_window_new_control(&win, UI_ButtonType),
+              *list2 = ui_window_new_control(&win, UI_ListType),
+              *cont1 = ui_window_new_control(&win, UI_ContainerType),
+              *cont2 = ui_window_new_control(&win, UI_ContainerType);
+    ui_window_append(&win, btn1);
+    ui_window_append(&win, cont1);
+    ui_control_append(cont1, edit1);
+    ui_control_append(cont1, cont2);
+    ui_control_append(cont1, lbl1);
+    ui_control_append(cont2, list2);
+    ui_control_append(cont2, btn2);
+    btn2->button->name = "Btn2";
+    cont2->container->name = "Cont2";
+
+    // one cycle fw
+    ui_window_nav_forward(&win);
+    expectEQ((void*)win.focus_control, btn1);
+    ui_window_nav_forward(&win);
+    expectEQ((void*)win.focus_control, edit1);
+    ui_window_nav_forward(&win);
+    expectEQ((void*)win.focus_control, list2);
+    ui_window_nav_forward(&win);
+    expectEQ((void*)win.focus_control, btn2);
+    ui_window_nav_forward(&win);
+    expectEQ((void*)win.focus_control, btn1);
+
+    // one cycle backward
+    ui_window_nav_backward(&win);
+    expectEQ((void*)win.focus_control, btn2);
+    ui_window_nav_backward(&win);
+    expectEQ((void*)win.focus_control, list2);
+    ui_window_nav_backward(&win);
+    expectEQ((void*)win.focus_control, edit1);
+    ui_window_nav_backward(&win);
+    expectEQ((void*)win.focus_control, btn1);
+    ui_window_nav_backward(&win);
+    expectEQ((void*)win.focus_control, btn2);
+}
+
+

@@ -33,37 +33,49 @@ static mem_Arena render_arena;
 static void wrap_insert(ui_Wrapper **handle, ui_Wrapper *item, int idx)
 {
     int i = 0;
-    for (ui_Wrapper* itm = *handle; itm != NULL; i++, itm = itm->next_sibling) {
+    ui_Wrapper* itm = *handle, *prev = NULL;
+    for (; itm != NULL; i++, itm = itm->next_sibling) {
         if (i == idx) {
             item->next_sibling = itm;
+            item->prev_sibling = prev;
+            itm->prev_sibling = item;
             *handle = item;
             return;
         }
         handle = &itm->next_sibling;
+        prev = itm;
     }
 
     // not found, append last
     *handle = item;
+    item->prev_sibling = prev;
 }
 
 static void wrap_append(ui_Wrapper **handle, ui_Wrapper* item)
 {
-    ui_Wrapper *itm = *handle;
-    for (; itm != NULL; itm = itm->next_sibling)
+    ui_Wrapper *itm = *handle, *prev = NULL;
+    for (; itm != NULL; itm = itm->next_sibling) {
         handle = &itm->next_sibling;
+        prev = itm;
+    }
 
     *handle = item;
+    item->prev_sibling = prev;
 }
 
 static void wrap_remove(ui_Wrapper **handle, ui_Wrapper* item)
 {
     int i = 0;
-    for (ui_Wrapper* itm = *handle; itm != NULL; ++i, itm = itm->next_sibling) {
+    ui_Wrapper* itm = *handle, *prev = NULL;
+    for (; itm != NULL; ++i, itm = itm->next_sibling) {
         if (itm == item) {
             *handle = itm->next_sibling;
+            if (itm->next_sibling)
+                itm->next_sibling->prev_sibling = prev;
             return;
         }
         handle = &itm->next_sibling;
+        prev = itm;
     }
 }
 
@@ -74,70 +86,7 @@ static void wrap_init(ui_Wrapper* wrap, ui_Window* win, enum ui_ControlType type
     wrap->type = type;
 }
 
-/*
-static void button_init(ui_Button* button, ui_Wrapper* wrap)
-{
-    button->name = "Button";
-    button->bg_color = FrontColors.LightGray;
-    button->fg_color = FrontColors.Black;
-    button->focus_bg_color = BackColors.LightGreen;
-    button->focus_fg_color = FrontColors.LightRed;
-    button->focus_format = NULL;
-    button->format = NULL;
-    button->shown = true;
-    button->wrapper = wrap;
-    button->horz_align =
-    String_init(&button->text, wrap->window->arena);
-}
-
-
-static void label_init(ui_Label* label, ui_Wrapper* wrap)
-{
-    label->name = "Label";
-    label->name = NULL;
-    label->bg_color = NULL;
-    label->fg_color = NULL;
-    label->shown = true;
-    label->wrapper = wrap;
-    String_init(&label->text, wrap->window->arena);
-}
-
-static void container_init(ui_Container* cont, ui_Wrapper* wrap)
-{
-    cont->name = "Container";
-    cont->bg_color = NULL;
-    cont->shown = true;
-    cont->wrapper = wrap;
-}
-
-static void textedit_init(ui_TextEdit* textedit, ui_Wrapper* wrap)
-{
-    textedit->name = "Textedit";
-    textedit->bg_color = FrontColors.LightGray;
-    textedit->fg_color = FrontColors.Black;
-    textedit->focus_bg_color = BackColors.LightGreen;
-    textedit->focus_fg_color = FrontColors.LightRed;
-    textedit->focus_format = NULL;
-    textedit->format = NULL;
-    textedit->activated = false;
-    textedit->enabled = true;
-    textedit->shown = true;
-    String_init(&textedit->text, wrap->window->arena);
-    textedit->wrapper = wrap;
-}
-
-static void list_init(ui_List* list, ui_Wrapper* wrap)
-{
-    list->name = "List";
-    list->bg_color = FrontColors.LightGray;
-    list->focus_bg_color = BackColors.LightGreen;
-    list->focus_fg_color = FrontColors.LightRed;
-    list->focus_format = NULL;
-    list->shown = true;
-    list->wrapper = wrap;
-}
-*/
-
+/// checks if any child is dirty (need repaint)
 static bool is_dirty(ui_Wrapper *wrap)
 {
     for (; wrap != NULL; wrap = wrap->next_sibling) {
@@ -146,6 +95,100 @@ static bool is_dirty(ui_Wrapper *wrap)
     }
 
     return false;
+}
+
+static void grow_rect_from_children(ui_Wrapper* wrap, ui_RenderRect *rect)
+{
+    for (ui_Wrapper* child = wrap->first_child;
+        child != NULL; child = child->next_sibling
+    ) {
+        if (child->rect.top_left.x < rect->top_left.x)
+            rect->top_left.x = child->rect.top_left.x;
+        if (child->rect.top_left.y < rect->top_left.y)
+            rect->top_left.y = child->rect.top_left.y;
+        if (child->rect.bottom_right.x > rect->bottom_right.x)
+            rect->bottom_right.x = child->rect.bottom_right.x;
+        if (child->rect.bottom_right.y > rect->bottom_right.y)
+            rect->bottom_right.y = child->rect.bottom_right.y;
+
+        if (child->first_child)
+            grow_rect_from_children(wrap->first_child, rect);
+    }
+}
+
+/*
+static ui_Wrapper* first_sibling(ui_Wrapper* wrap)
+{
+    ui_Wrapper *tmp = wrap->prev_sibling;
+    if (!tmp) return wrap;
+
+    for (; tmp->prev_sibling != NULL ; tmp = tmp->prev_sibling) ;
+
+    return tmp;
+}*/
+
+static ui_Wrapper* last_sibling(ui_Wrapper* wrap)
+{
+    ui_Wrapper* tmp = wrap->next_sibling;
+    if (!tmp) return wrap;
+
+    for (; tmp->next_sibling != NULL; tmp = tmp->next_sibling) ;
+
+    return tmp;
+}
+
+static ui_Wrapper* next_focusable(
+    ui_Wrapper* wrap, ui_Wrapper* curobj, bool *after_curobj)
+{
+    if (!wrap) return NULL;
+
+    ui_Wrapper *itm = NULL,
+               *tmp = NULL;
+
+    for (itm = wrap; itm != NULL; itm = itm->next_sibling
+    ) {
+
+        if (*after_curobj &&
+            ui_control_can_focus(itm) && ui_control_get_enabled(itm))
+            return itm;
+
+        if (itm == curobj)
+            *after_curobj = true;
+
+        tmp = next_focusable(itm->first_child, curobj, after_curobj);
+        if (tmp != NULL)
+            return tmp;
+    }
+
+    return NULL;
+}
+
+static ui_Wrapper* prev_focusable(
+    ui_Wrapper* wrap, ui_Wrapper* curobj, bool *after_curobj
+) {
+    if (!wrap) return NULL;
+
+    ui_Wrapper *itm = NULL,
+               *tmp = NULL;
+
+    itm = last_sibling(wrap);
+
+    for (; itm != NULL; itm = itm->prev_sibling
+    ) {
+
+        if (*after_curobj &&
+            ui_control_can_focus(itm) && ui_control_get_enabled(itm))
+            return itm;
+
+        if (itm == curobj)
+            *after_curobj = true;
+
+        tmp = prev_focusable(itm->first_child, curobj, after_curobj);
+        if (tmp != NULL)
+            return tmp;
+    }
+
+    return NULL;
 }
 
 static void string_row_aligned(
@@ -334,6 +377,17 @@ static void render(ui_Wrapper *wrap, ui_Wrapper* focus_ctl, ui_Point top_left)
 // ---------------------------------------------------------
 
 
+void ui_rect_set(ui_RenderRect* rect, int x1, int y1, int x2, int y2)
+{
+    rect->top_left.x = x1;
+    rect->top_left.y = y1;
+    rect->bottom_right.x = x2;
+    rect->bottom_right.y = y2;
+}
+
+// ----------------------------------------------------------
+
+
 void ui_window_init(ui_Window* win, mem_Arena* arena)
 {
     win->root = NULL;
@@ -408,6 +462,102 @@ void ui_window_remove(ui_Window* win, ui_Wrapper* item)
 {
     wrap_remove(&win->root, item);
 }
+
+bool ui_window_set_taborder(ui_Window* win, ui_Wrapper* item)
+{
+    if (!ui_control_can_focus(item))
+        return false;
+
+    // check if we already have it
+    ui_TabOrder **pnext = &win->first_tab_order,
+                 *tab = win->first_tab_order,
+                 *prev = NULL;
+    do {
+        if (!tab) break;
+
+        if (tab->control == item)
+            return false;
+
+        pnext = &tab->next;
+        prev = tab;
+        tab = tab->next;
+    } while(tab != win->first_tab_order);
+
+    *pnext = (ui_TabOrder*)mem_arena_alloc(win->arena, sizeof(ui_TabOrder));
+    if (!*pnext) return false;
+
+    (*pnext)->control = item;
+    (*pnext)->next = win->first_tab_order;
+    (*pnext)->prev = prev ? prev : *pnext;
+
+    return true;
+}
+
+void ui_window_nav_forward(ui_Window* win)
+{
+    ui_Wrapper **focus_obj = &win->focus_control,
+                *tmp = NULL;
+
+    if (win->first_tab_order) {
+        ui_TabOrder *tab = win->first_tab_order;
+        do {
+            if (tab->control != *focus_obj &&
+                ui_control_get_enabled(tab->control)
+            )
+                break;
+
+            tab = tab->next;
+        } while (tab != win->first_tab_order);
+
+        *focus_obj = tab->control;
+        return;
+    }
+
+    bool after_curobj = false;
+
+    if (!*focus_obj) {
+        after_curobj = true;
+        *focus_obj = next_focusable(win->root, win->root, &after_curobj);
+        return;
+    }
+
+    tmp = next_focusable(win->root, *focus_obj, &after_curobj);
+    if (!tmp) tmp = next_focusable(win->root, *focus_obj, &after_curobj);
+    if (tmp) *focus_obj = tmp;
+}
+
+void ui_window_nav_backward(ui_Window* win)
+{
+    ui_Wrapper **focus_obj = &win->focus_control,
+                *tmp = NULL;
+    if (win->first_tab_order) {
+        ui_TabOrder *tab = win->first_tab_order;
+        do {
+            if (tab->control != *focus_obj &&
+                ui_control_get_enabled(tab->control)
+            )
+                break;
+
+            tab = tab->prev;
+        } while (tab != win->first_tab_order);
+
+        *focus_obj = tab->control;
+        return;
+    }
+
+    bool after_curobj = false;
+
+    if (!*focus_obj) {
+        after_curobj = true;
+        *focus_obj = prev_focusable(win->root, win->root, &after_curobj);
+        return;
+    }
+
+    tmp = prev_focusable(win->root, *focus_obj, &after_curobj);
+    if (!tmp) tmp = prev_focusable(win->root, *focus_obj, &after_curobj);
+    if (tmp) *focus_obj = tmp;
+}
+
 
 void ui_window_render(ui_Window* win)
 {
@@ -552,9 +702,16 @@ bool ui_control_set_text(ui_Wrapper* wrap, const char* text, size_t sz)
     }
 }
 
+ui_RenderRect ui_control_get_bounds(ui_Wrapper* wrap)
+{
+    ui_RenderRect rect = wrap->rect;
+    grow_rect_from_children(wrap, &rect);
+    return rect;
+}
+
 void ui_control_set_bounds(ui_Wrapper* wrap, ui_RenderRect rect)
 {
-    // TODO check that it wont be smaller than any containing controls
     wrap->rect = rect;
+    grow_rect_from_children(wrap, &rect);
 }
 

@@ -114,6 +114,7 @@ typedef struct ui_Wrapper {
     ui_RenderRect rect;
     struct ui_Wrapper *parent, ///< paren node
                        *next_sibling, ///< sibling below
+                       *prev_sibling, ///< sibling above
                        *first_child;  ///< fist chile
     struct ui_Window *window; ///< window this is associated with
     union {
@@ -135,7 +136,8 @@ typedef struct ui_Wrapper {
  */
 typedef struct ui_TabOrder {
     ui_Wrapper *control;
-    struct ui_TabOrder *next;
+    struct ui_TabOrder *next,
+                       *prev;
 } ui_TabOrder;
 
 /**
@@ -147,6 +149,12 @@ typedef struct ui_Window {
     ui_TabOrder *first_tab_order;
     mem_Arena *arena;
 } ui_Window;
+
+
+/**
+ * Sets the size of a rectangle
+ */
+void ui_rect_set(ui_RenderRect* rect, int x1, int y1, int x2, int y2);
 
 
 /**
@@ -190,6 +198,27 @@ void ui_window_append(ui_Window* win, ui_Wrapper* item);
  * @param item The item to remove
  */
 void ui_window_remove(ui_Window* win, ui_Wrapper* item);
+
+/**
+ * Sets a tabstop for item if its focusable.\
+ * If a tabstop is set, it navigates only using that.
+ */
+bool ui_window_set_taborder(ui_Window* win, ui_Wrapper* item);
+
+/**
+ * Navigate to next focusable tabstop
+ */
+void ui_window_nav_forward(ui_Window* win);
+
+/**
+ * Navigate to previous focusable tabstop
+ */
+void ui_window_nav_backward(ui_Window* win);
+
+/**
+ * Complete a render loop
+ */
+void ui_window_render(ui_Window* win);
 
 // --------------------------------------------------------s
 
@@ -249,6 +278,11 @@ const String* ui_control_get_text(ui_Wrapper* wrap);
  * Set text of this control
  */
 bool ui_control_set_text(ui_Wrapper* wrap, const char* text, size_t sz);
+
+/**
+ * Gets a bounds rectangle of this wrap grown by its childrens sizes
+ */
+ui_RenderRect ui_control_get_bounds(ui_Wrapper* wrap);
 
 /**
  * Sets the bounding rect of this control
