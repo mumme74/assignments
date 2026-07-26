@@ -98,3 +98,80 @@ TEST(str_suite, str_unscramble, "Should unscramble")
     String_unscramble(&unscramble, &str, 0x2468ACE1);
     expectEQ(unscramble.elements, expect);
 }
+
+TEST(str_suite, utf8_len, "Test print utf 8 len")
+{
+    const char buf[] = "öäåÅÄÖ";
+    String_set(&str, buf, strlen(buf));
+
+    expectEQ(String_utf8_len(&str), 6);
+}
+
+TEST(str_suite, utf8_slice, "Test utf8 slice")
+{
+    const char buf[] = "öäåÅÄÖ";
+    String_set(&str, buf, strlen(buf));
+
+    StringSlice sl = String_uft8_slice(&str, 2, 3);
+    expectEQ(sl.size, 6);
+
+    String str2;
+    String_init(&str2, &arena);
+    String_set_from_slice(&str2, &sl);
+    expectEQ(str2.elements, "åÅÄ");
+}
+
+TEST(str_suite, str_append_slice, "Should append with slice")
+{
+    const char buf[] = "Teststring";
+    String_set(&str, buf, strlen(buf));
+
+    StringSlice sl = String_slice(&str, 2, 5);
+
+    String_append_from_slice(&str, &sl);
+    expectEQ(str.elements, "Teststringststr");
+    expectEQ(str.size, strlen(buf) + 5);
+}
+
+
+TEST(str_suite, str_set_from_slice, "Should set with slice")
+{
+    const char buf[] = "Teststring";
+    String_set(&str, buf, strlen(buf));
+
+    StringSlice sl = String_slice(&str, 2, 5);
+
+    String str2;
+    String_init(&str2, &arena);
+    String_set(&str2, buf, strlen(buf));
+    String_set_from_slice(&str2, &sl);
+    expectEQ(str2.elements, "ststr");
+    expectEQ(str2.size, 5);
+}
+
+
+TEST(str_suite, str_split_join, "Tests split and join")
+{
+    const char buf[] = "row1\r\nrow2\r\nrow3";
+    String_set(&str, buf, strlen(buf));
+    mem_Arena arena2;
+    mem_arena_init(&arena2);
+
+    StringArr *arr = String_split(&str, "\r\n", &arena2);
+    expectEQ((void*)arr->arena, &arena2);
+    expectEQ(arr->size, 3);
+    expectEQ(arr->elements[0].elements, "row1");
+    expectEQ(arr->elements[1].elements, "row2");
+    expectEQ(arr->elements[2].elements, "row3");
+
+    String *s1 = StringArr_join(arr, NULL, &arena2);
+    expectEQ((void*)s1->arena, &arena2);
+    expectEQ(s1->elements, "row1row2row3");
+
+    String *s2 = StringArr_join(arr, ";", &arena2);
+    expectEQ((void*)s2->arena, &arena2);
+    expectEQ(s2->elements, "row1;row2;row3");
+
+
+    mem_arena_free(&arena2);
+}

@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include "arena.h"
 
+typedef struct StringArr StringArr;
 
 #ifndef NO_TEMPLATE_STRING
 
@@ -38,6 +39,62 @@ bool String_set(String* string, const char* text, uint32_t sz);
 bool String_append_str(String *dest, const char *src, uint32_t sz);
 
 /**
+ * Set string from a slice of another
+ *
+ * @param dest The string to set
+ * @param source The slice used as source
+ * @return false if failed
+ */
+bool String_set_from_slice(String* dest, StringSlice* source);
+
+/**
+ * Append string from a slice of another
+ *
+ * @param dest The string to append to
+ * @param source The slice used as source
+ * @return false if failed
+ */
+bool String_append_from_slice(String* dest, StringSlice* source);
+
+/**
+ * Pad a string with length chars of ch
+ *
+ * @param string The string to pad
+ * @param length The length of the string
+ * @param ch The char to pad with
+ */
+bool String_pad(String* string, size_t length, const char ch);
+
+/**
+ * Split a string into parts on the key
+ *
+ * @param string The string to split
+ * @param key The key to split on, maxlen 10 chars, atleast 1
+ * @param arena Use this arena to allocate
+ * @return The parts in a StringArr
+ */
+StringArr *String_split(String* string, const char* key, mem_Arena* arena);
+
+/**
+ * Get the printable length (utf8 might be multibytes)
+ *
+ * @param string The string to count
+ * @return the printable length as it would appear on screen
+ */
+size_t String_utf8_len(String* string);
+
+/**
+ * Get a slice of the utf8 printable length
+ *
+ * @param string The string to slice from
+ * @param start Startpos
+ * @param length End pos
+ * @return Ths slice of string
+ */
+StringSlice String_uft8_slice(String* string, size_t start, uint32_t length);
+
+
+/**
  * Scramble a string using scramble
  *
  * @param dest The scrambled string arrives here
@@ -67,5 +124,15 @@ bool String_unscramble(String *dest, String *src, uint32_t scramble);
 #include "array.template.h"
 
 #endif
+
+/**
+ * Join a StringArr into a single string with optional sep in between
+ *
+ * @param arr The StringArr to join
+ * @param sep The separator in between, might be null, but no longer than 10 chars.
+ * @param arena USe this arena to allocate
+ * @return The joined string
+ */
+String* StringArr_join(StringArr* arr, const char *sep, mem_Arena* arena);
 
 #endif // _TYPES_H_
