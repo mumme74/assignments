@@ -40,6 +40,16 @@ int isnumber(const char *str);
 uint32_t printlen_utf8(const char *str, uint32_t maxlen);
 
 /**
+ * Find the pos in string with len as printable len
+ *
+ * @param buf The string to search in
+ * @param size The size of buf
+ * @param utf8pos The sought pos
+ * @returns the position in buf
+ */
+const char* utf8_pos_length_in(const char* buf, size_t size, size_t utf8pos);
+
+/**
  * A single point for error messages
  */
 void write_error(const char* errmsg);

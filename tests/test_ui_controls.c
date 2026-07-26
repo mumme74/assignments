@@ -30,12 +30,14 @@ TEST(ctl_suite, win_init, "Should init")
     ui_window_init(&win, &arena);
     expectEQ((void*)win.arena, &arena);
     expectEQ((void*)win.root, NULL);
+    expectEQ((void*)win.focus_control, NULL);
+    expectEQ((void*)win.first_tab_order, NULL);
 }
 
 TEST(ctl_suite, win_create_lbl, "Test create label")
 {
     ctl = ui_window_new_control(&win, UI_LabelType);
-    expectEQ(ctl->label->name, NULL);
+    expectEQ(ctl->label->name, "Label");
     expectNE((void*)ctl, NULL);
     expectEQ((void*)ctl->window, &win);
     expectEQ((void*)ctl->parent, NULL);
@@ -58,14 +60,14 @@ TEST(ctl_suite, win_create_lbl, "Test create label")
 
 TEST(ctl_suite, win_create_btn, "Test create Button")
 {
-    ctl = ui_window_new_control(&win, UI_LabelType);
-    expectEQ(ctl->button->name, NULL);
+    ctl = ui_window_new_control(&win, UI_ButtonType);
+    expectEQ(ctl->button->name, "Button");
     expectNE((void*)ctl, NULL);
     expectEQ((void*)ctl->window, &win);
     expectEQ((void*)ctl->parent, NULL);
     expectEQ((void*)ctl->next_sibling, NULL);
     expectEQ((void*)ctl->first_child, NULL);
-    expectEQ(ctl->type, UI_LabelType);
+    expectEQ(ctl->type, UI_ButtonType);
     expectFalse((void*)ctl->dirty);
     expectEQ(ctl->rect.top_left.x, 0);
     expectEQ(ctl->rect.top_left.y, 0);

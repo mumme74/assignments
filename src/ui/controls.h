@@ -17,6 +17,8 @@
 
 #define TEXT_INTERFACE \
     String text;         \
+    enum ui_HorzAlign horz_align; \
+    enum ui_VertAlign vert_align; \
     const char *fg_color, \
                *format;
 
@@ -34,6 +36,23 @@
 struct ui_Window;
 struct ui_Wrapper;
 
+
+/**
+ * Allowed controls
+ */
+enum ui_ControlType {
+    UI_ButtonType, UI_ContainerType, UI_TextEditType,
+    UI_LabelType, UI_ListType
+};
+
+enum ui_HorzAlign {
+    HorzAlignLeft, HorzAlignCenter, HorzAlignRight
+};
+
+enum ui_VertAlign {
+    VertAlignTop, VertAlignCenter, VertAlignBottom
+};
+
 /**
  * A x, y point
  */
@@ -50,13 +69,6 @@ typedef struct ui_RenderRect {
              bottom_right;
 } ui_RenderRect;
 
-/**
- * Allowed controle
- */
-enum ui_ControlType {
-    UI_ButtonType, UI_ContainerType, UI_TextEditType,
-    UI_LabelType, UI_ListType
-};
 
 
 /**
@@ -118,12 +130,21 @@ typedef struct ui_Wrapper {
 
 } ui_Wrapper;
 
+/**
+ * A linked list with the tab order
+ */
+typedef struct ui_TabOrder {
+    ui_Wrapper *control;
+    struct ui_TabOrder *next;
+} ui_TabOrder;
 
 /**
  * The rendering window
  */
 typedef struct ui_Window {
-    ui_Wrapper *root;
+    ui_Wrapper *root,
+               *focus_control; ///< the control that has focus
+    ui_TabOrder *first_tab_order;
     mem_Arena *arena;
 } ui_Window;
 
@@ -169,6 +190,8 @@ void ui_window_append(ui_Window* win, ui_Wrapper* item);
  * @param item The item to remove
  */
 void ui_window_remove(ui_Window* win, ui_Wrapper* item);
+
+// --------------------------------------------------------s
 
 /**
  * Insert item into the control
@@ -226,5 +249,10 @@ const String* ui_control_get_text(ui_Wrapper* wrap);
  * Set text of this control
  */
 bool ui_control_set_text(ui_Wrapper* wrap, const char* text, size_t sz);
+
+/**
+ * Sets the bounding rect of this control
+ */
+void ui_control_set_bounds(ui_Wrapper* wrap, ui_RenderRect rect);
 
 #endif
