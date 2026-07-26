@@ -17,6 +17,15 @@
 
 #endif
 
+/**
+ * Set to text, clearin old content
+ *
+ * @param string The string to reset
+ * @param text The text to insert
+ * @param sz Length of text
+ * @return false if failed
+ */
+bool String_set(String* string, const char* text, uint32_t sz);
 
 /**
  * Append a C string to end

@@ -65,6 +65,7 @@
 #define slice CAT(NAME, _slice)
 #define concat CAT(NAME, _concat)
 #define at CAT(NAME, _at)
+#define clear CAT(NAME, _clear)
 
 #define NAME_SLICE CAT(NAME, Slice)
 
@@ -95,6 +96,7 @@ int32_t last_index_of(NAME* arr, T element);
 NAME_SLICE slice(NAME* arr, size_t start, int32_t len);
 bool concat(NAME* dest, NAME* src);
 T at(NAME* arr, size_t idx);
+void clear(NAME* arr);
 
 
 
@@ -276,6 +278,17 @@ T at(NAME* arr, size_t idx)
     return empty;
 }
 
+void clear(NAME* arr)
+{
+    if (!arr->size)
+        return;
+
+    arr->size = 0;
+
+    T empty = {0};
+    arr->elements[0] = empty;
+}
+
 
 #endif
 
@@ -292,6 +305,7 @@ T at(NAME* arr, size_t idx)
 #undef slice
 #undef concat
 #undef at
+#undef clear
 
 #undef T
 #undef NAME

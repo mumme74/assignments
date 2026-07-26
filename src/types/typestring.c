@@ -26,6 +26,12 @@
 
 // -------------------------------------------------
 
+bool String_set(String* string, const char* text, uint32_t sz)
+{
+    String_clear(string);
+    return String_append_str(string, text, sz);
+}
+
 bool String_append_str(
     String *dest, const char *src, uint32_t sz
 ) {
