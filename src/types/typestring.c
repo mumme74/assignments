@@ -110,6 +110,8 @@ StringArr *String_split(String* string, const char* key, mem_Arena* arena)
 
 size_t String_utf8_len(String* string)
 {
+    if (!string) return 0;
+
     size_t len = 0, maxlen = string->size;
     for (const char *p = string->elements; *p != '\0' && --maxlen; ++p) {
         if ((*p & 0xC0) != 0x80)

@@ -16,7 +16,9 @@
 #define INIT_TEXT_INTERFACE(obj, arena) \
     String_init(&(obj)->text, arena); \
     (obj)->horz_align = HorzAlignLeft; \
-    (obj)->vert_align = VertAlignTop; \
+    (obj)->vert_align = VertAlignTop;
+
+#define INIT_FORMAT_TEXT_INTERFACE(obj) \
     (obj)->fg_color = fg_default; \
     (obj)->format = Format.ResetAll;
 
@@ -26,16 +28,30 @@
     (obj)->focus_format = Format.ResetAll; \
     (obj)->enabled = true;
 
+#define INIT_CLICKABLE_INTERFACE(obj) \
+    (obj)->clicked = NULL;
+
+#define INIT_SCROLLABLE_INTERFACE(obj) \
+    (obj)->active_bg_color = bg_active_color; \
+    (obj)->active_fg_color = fg_active_color; \
+    (obj)->cursor.x = 0; \
+    (obj)->cursor.y = 0; \
+    (obj)->scroll.x = 0; \
+    (obj)->scroll.y = 0; \
+    (obj)->activated = false;
+
 #define INIT_EDITABLE_INTERFACE(obj) \
-    (obj)->enabled = true;
+    (obj)->changed = NULL;
 
 static mem_Arena render_arena;
-static int fg_default = -1,
-           bg_default = -1,
-           bg_container = -1,
-           fg_focus_color = -1,
-           bg_focus_color = -1,
-           bg_window = -1;
+static int fg_default      = -1,
+           bg_default      = -1,
+           bg_container    = -1,
+           fg_focus_color  = -1,
+           bg_focus_color  = -1,
+           bg_window       = -1,
+           bg_active_color = -1,
+           fg_active_color = -1;
 
 static void wrap_insert(ui_Wrapper **handle, ui_Wrapper *item, int idx)
 {
@@ -204,7 +220,7 @@ static void string_row_aligned(
     case HorzAlignRight:
         if (sl.size < len)
             String_pad(dest, len - sl.size, ' ');
-        String_set_from_slice(dest, &sl);
+        String_append_from_slice(dest, &sl);
         break;
     case HorzAlignCenter: {
         size_t half = (len - sl.size) / 2,
@@ -263,9 +279,8 @@ static void draw_lines(StringArr* lines, int x, int y)
     }
 }
 
-static void render_button(ui_Wrapper *wrap, ui_RenderRect* rect, bool has_focus)
+static void render_button(ui_Button *btn, ui_RenderRect* rect, bool has_focus)
 {
-    ui_Button *btn = wrap->button;
     int formats[] = {
         has_focus ? btn->focus_format : btn->format,
         has_focus ? btn->focus_fg_color : btn->fg_color,
@@ -280,10 +295,8 @@ static void render_button(ui_Wrapper *wrap, ui_RenderRect* rect, bool has_focus)
     ui_one_format(bg_window);
 }
 
-static void render_container(ui_Wrapper *wrap, ui_RenderRect* rect)
+static void render_container(ui_Container* cont, ui_RenderRect* rect)
 {
-    ui_Container *cont = wrap->container;
-
     size_t len = rect->bottom_right.x - rect->top_left.x;
     if (len < 1) return;
 
@@ -300,10 +313,8 @@ static void render_container(ui_Wrapper *wrap, ui_RenderRect* rect)
     ui_one_format(bg_window);
 }
 
-static void render_label(ui_Wrapper* wrap, ui_RenderRect* rect)
+static void render_label(ui_Label* lbl, ui_RenderRect* rect)
 {
-    ui_Label *lbl = wrap->label;
-
     StringArr *lines = lines_from_rect(
         &lbl->text, rect, lbl->horz_align, lbl->vert_align);
 
@@ -314,34 +325,79 @@ static void render_label(ui_Wrapper* wrap, ui_RenderRect* rect)
     ui_one_format(bg_window);
 }
 
-static void render_list(ui_Wrapper* wrap, ui_RenderRect* rect, bool has_focus)
+static void render_list(ui_List* list, ui_RenderRect* rect, bool has_focus)
 {
-    ui_List *list = wrap->list;
-
-    ui_one_format(has_focus ? list->bg_color : list->focus_bg_color);
     size_t len = rect->bottom_right.x - rect->top_left.x;
 
-    String row;
-    String_init(&row, &render_arena);
-    String_pad(&row, len, ' ');
+    int fg_highlight = list->activated ? list->active_fg_color : list->focus_fg_color,
+        bg_highlight = list->activated ? list->active_bg_color : list->focus_bg_color;
+
+    int formats[] = {
+        has_focus ? list->focus_format : list->format,
+        has_focus ? list->focus_fg_color : list->fg_color,
+        has_focus ? list->focus_bg_color : list->bg_color
+    };
+    ui_formats(formats, sizeof(formats)/sizeof(formats[0]));
 
     int x = rect->top_left.x,
         y = rect->top_left.y;
-    for (; y <= rect->bottom_right.y; y++) {
-        ui_printf_at_pos(x, y, "%s", row.elements);
+
+    if (list->activated) {
+        ui_set_cursor_pos(rect->top_left.x + list->cursor.x,
+                          rect->top_left.y + list->cursor.y);
+        list->wrapper->window->cursor_holder = list->wrapper;
+
+        if (list->scroll.x < 0) list->scroll.x = 0;
+        if (list->scroll.y < 0) list->scroll.y = 0;
+    }
+
+    String *row = String_new(&render_arena);
+
+    for (int r = list->scroll.y; y < rect->bottom_right.y; y++, r++) {
+        String_clear(row);
+        if (list->fetch_row)
+            (*list->fetch_row)(list->wrapper, row, r);
+
+        StringSlice sl = String_uft8_slice(row, list->scroll.x, len);
+        String* row2 = String_new_from_slice(&sl, &render_arena);
+        row = row2 ? row2 : row;
+
+        size_t prnlen = String_utf8_len(row);
+        if (prnlen < len)
+            String_pad(row, len - prnlen-1, ' ');
+
+        if (list->activated) {
+            if (r - list->scroll.y == list->cursor.y) {
+                ui_one_format(fg_highlight);
+                ui_one_format(bg_highlight);
+            } else if (r -1 - list->scroll.y == list->cursor.y) {
+                ui_one_format(list->focus_fg_color);
+                ui_one_format(list->focus_bg_color);
+            }
+        }
+
+        ui_printf_at_pos(x, y, "%s", row->elements);
     }
 
     ui_one_format(bg_window);
 }
 
-static void render_textedit(ui_Wrapper* wrap, ui_RenderRect* rect, bool has_focus)
+static void render_textedit(ui_TextEdit* edit, ui_RenderRect* rect, bool has_focus)
 {
-    ui_TextEdit *edit = wrap->textedit;
+    int fg_highlight = edit->activated ? edit->active_fg_color : edit->focus_fg_color,
+        bg_highlight = edit->activated ? edit->active_bg_color : edit->focus_bg_color;
+
     int formats[] = {
         has_focus ? edit->focus_format : edit->format,
-        has_focus ? edit->focus_fg_color : edit->fg_color,
-        has_focus ? edit->focus_bg_color : edit->bg_color
+        has_focus ? fg_highlight : edit->fg_color,
+        has_focus ? bg_highlight : edit->bg_color
     };
+
+    if (edit->activated) {
+        ui_set_cursor_pos(rect->top_left.x + edit->cursor.x,
+                          rect->top_left.y + edit->cursor.y);
+        edit->wrapper->window->cursor_holder = edit->wrapper;
+    }
 
     StringArr *lines = lines_from_rect(
         &edit->text, rect, edit->horz_align, edit->vert_align);
@@ -372,25 +428,119 @@ static void render(ui_Wrapper *wrap, ui_Wrapper* focus_ctl, ui_Point top_left)
 
         switch (wrap->type) {
         case UI_ButtonType:
-            render_button(wrap, &rect, has_focus);
+            render_button(wrap->button, &rect, has_focus);
             break;
         case UI_ContainerType:
-            render_container(wrap, &rect);
+            render_container(wrap->container, &rect);
             break;
         case UI_LabelType:
-            render_label(wrap, &rect);
+            render_label(wrap->label, &rect);
             break;
         case UI_ListType:
-            render_list(wrap, &rect, has_focus);
+            render_list(wrap->list, &rect, has_focus);
             break;
         case UI_TextEditType:
-            render_textedit(wrap, &rect, has_focus);
+            render_textedit(wrap->textedit, &rect, has_focus);
             break;
         default: break;
         }
 
         if (wrap->first_child && ui_control_get_shown(wrap))
             render(wrap->first_child, focus_ctl, rect.top_left);
+    }
+}
+
+static void text_edit_input(ui_TextEdit* edit, int c)
+{
+    int line = edit->scroll.y + edit->cursor.y,
+        col  = edit->scroll.x + edit->cursor.x;
+    (void)line;
+    (void)col;
+    switch (c) {
+    case Key_Del:
+        break;
+    case Key_Home:
+        break;
+    case Key_End:
+        break;
+    default: {
+    }   break;
+    }
+}
+
+
+static void call_click_event(ui_Wrapper* wrap)
+{
+    if (!wrap) return;
+
+    switch (wrap->type) {
+    case UI_ButtonType:
+        if (wrap->button->clicked)
+            (*wrap->button->clicked)(wrap);
+        break;
+    default: break;
+    }
+}
+
+static void move_cursor(ui_Window* win, int x, int y)
+{
+    if (!win->cursor_holder)
+        return;
+
+    ui_Point *cursor,
+                *scroll;
+
+    switch (win->cursor_holder->type) {
+    case UI_TextEditType:
+        cursor = &win->cursor_holder->textedit->cursor;
+        scroll = &win->cursor_holder->textedit->scroll;
+        break;
+    case UI_ListType:
+        cursor = &win->cursor_holder->list->cursor;
+        scroll = &win->cursor_holder->list->scroll;
+        break;
+    default:
+        return;
+    }
+
+    // we got here so we can set cursor
+    ui_Point p1 = win->focus_control->rect.top_left,
+                p2 = win->focus_control->rect.bottom_right,
+            // bottom right wo offset in parent
+                pnt = {p2.x -p1.x, p2.y - p1.y};
+    if ((cursor->x + x < 0 || cursor->x + x >= pnt.x) ||
+        (cursor->y + y < 0 || cursor->y + y >= pnt.y))
+    {
+        scroll->x += x;
+        scroll->y += y;
+    } else {
+        cursor->x += x;
+        cursor->y += y;
+    }
+
+    win->cursor_holder->dirty = true;
+
+    int offset_x = 0, offset_y = 0;
+    for (ui_Wrapper* itm = win->focus_control;
+        itm != NULL; itm = itm->parent
+    ) {
+        offset_x += itm->rect.top_left.x;
+        offset_y += itm->rect.top_left.y;
+    }
+
+    ui_set_cursor_pos(offset_x + cursor->x, offset_y + cursor->y);
+}
+
+static void handle_input(ui_Window* win, int c)
+{
+    if (!ui_window_get_active_state(win))
+        return;
+
+    switch (win->focus_control->type) {
+    case UI_TextEditType:
+        text_edit_input(win->focus_control->textedit, c);
+        break;
+    default: break;
     }
 }
 
@@ -416,6 +566,7 @@ void ui_window_init(ui_Window* win, mem_Arena* arena)
     win->first_tab_order = NULL;
     win->arena = arena;
     win->render_cnt = 0;
+    win->cursor_holder = NULL;
 
     if (fg_default < 0) fg_default = FrontColors.Blue;
     if (bg_default < 0) bg_default = BackColors.LightGreen;
@@ -423,6 +574,8 @@ void ui_window_init(ui_Window* win, mem_Arena* arena)
     if (bg_focus_color < 0) bg_focus_color = BackColors.Green;
     if (fg_focus_color < 0) fg_focus_color = BackColors.Cyan;
     if (bg_window < 0) bg_window = BackColors.LightMagenta;
+    if (bg_active_color < 0) bg_active_color = BackColors.Cyan;
+    if (fg_active_color < 0) fg_active_color = BackColors.Green;
 }
 
 
@@ -441,6 +594,8 @@ ui_Wrapper* ui_window_new_control(ui_Window* win, enum ui_ControlType type)
         if (!wrap->button) return NULL;
         INIT_COMMON_INTERFACE(wrap->button, "Button", false)
         INIT_TEXT_INTERFACE(wrap->button, win->arena)
+        INIT_FORMAT_TEXT_INTERFACE(wrap->button)
+        INIT_CLICKABLE_INTERFACE(wrap->button)
         INIT_FOCUSABLE_INTERFACE(wrap->button)
         break;
     case UI_ContainerType:
@@ -454,19 +609,25 @@ ui_Wrapper* ui_window_new_control(ui_Window* win, enum ui_ControlType type)
         if (!wrap->label) return NULL;
         INIT_COMMON_INTERFACE(wrap->label, "Label", false)
         INIT_TEXT_INTERFACE(wrap->label, win->arena)
+        INIT_FORMAT_TEXT_INTERFACE(wrap->label)
         break;
     case UI_ListType:
         wrap->list = (ui_List*)mem_arena_alloc(win->arena, sizeof(ui_List));
         if (!wrap->list) return NULL;
         INIT_COMMON_INTERFACE(wrap->list, "List", false)
+        INIT_FORMAT_TEXT_INTERFACE(wrap->list)
         INIT_FOCUSABLE_INTERFACE(wrap->list)
+        INIT_SCROLLABLE_INTERFACE(wrap->list)
+        wrap->list->fetch_row = NULL;
         break;
     case UI_TextEditType:
         wrap->textedit = (ui_TextEdit*)mem_arena_alloc(win->arena, sizeof(ui_TextEdit));
         if (!wrap->textedit) return NULL;
         INIT_COMMON_INTERFACE(wrap->textedit, "Textedit", false)
         INIT_TEXT_INTERFACE(wrap->textedit, win->arena)
+        INIT_FORMAT_TEXT_INTERFACE(wrap->textedit)
         INIT_FOCUSABLE_INTERFACE(wrap->textedit)
+        INIT_SCROLLABLE_INTERFACE(wrap->textedit)
         INIT_EDITABLE_INTERFACE(wrap->textedit)
         break;
     default: return NULL;
@@ -598,6 +759,69 @@ void ui_window_set_focus(ui_Window* win, ui_Wrapper* wrap)
     }
 }
 
+bool ui_window_get_active_state(ui_Window* win)
+{
+    if (!win->focus_control)
+        return false;
+
+    switch (win->focus_control->type) {
+    case UI_TextEditType:
+        return win->focus_control->textedit->activated;
+    case UI_ListType:
+        return win->focus_control->list->activated;
+    default:
+        return false;
+    }
+}
+
+void ui_window_set_active_state(ui_Window* win, bool active)
+{
+    if (!ui_control_can_focus(win->focus_control))
+        return;
+
+    switch (win->focus_control->type) {
+    case UI_TextEditType:
+        win->focus_control->textedit->activated = active;
+        win->focus_control->dirty = true;
+        break;
+    case UI_ListType:
+        win->focus_control->list->activated = active;
+        win->focus_control->dirty = true;
+        break;
+    default: break;
+    }
+}
+
+int ui_window_listen(ui_Window* win)
+{
+    ui_window_render(win);
+
+    int c;
+    if ((c = ui_listen()) > 0) {
+        switch (c) {
+        case Key_Enter:
+            if (!ui_window_get_active_state(win))
+                ui_window_set_active_state(win, true);
+            call_click_event(win->focus_control);
+            break;
+        case Key_Esc:
+            if (ui_window_get_active_state(win))
+                ui_window_set_active_state(win, false);
+            break;
+        case Key_Tab:      ui_window_nav_forward(win); break;
+        case Key_ShiftTab: ui_window_nav_backward(win); break;
+        case Key_ArrowDown:  move_cursor(win, 0, 1); break;
+        case Key_ArrowUp:    move_cursor(win, 0,-1); break;
+        case Key_ArrowLeft:  move_cursor(win,-1, 0); break;
+        case Key_ArrowRight: move_cursor(win, 1, 0); break;
+        default:
+            handle_input(win, c);
+        }
+    }
+
+    return c;
+}
+
 
 void ui_window_render(ui_Window* win)
 {
@@ -610,6 +834,7 @@ void ui_window_render(ui_Window* win)
     if (is_dirty(win->root)) {
         ui_Point pnt = {0};
         render(win->root, win->focus_control, pnt);
+        ui_set_cursor_show(win->cursor_holder != NULL);
         ui_render();
     }
 

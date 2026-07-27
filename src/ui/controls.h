@@ -19,6 +19,8 @@
     String text;         \
     enum ui_HorzAlign horz_align; \
     enum ui_VertAlign vert_align; \
+
+#define FORMAT_TEXT_INTERFACE \
     int fg_color, \
         format;
 
@@ -28,13 +30,25 @@
         focus_format; \
     bool enabled;
 
-#define EDITABLE_INTERFACE \
+#define CLICKABLE_INTERFACE \
+    ui_EventCb *clicked;
+
+#define SCROLLABLE_INTERFACE \
+    ui_Point scroll,        \
+             cursor;        \
+    int active_bg_color, \
+        active_fg_color; \
     bool activated;
 
+#define EDITABLE_INTERFACE \
+    ui_EventCb *changed;
 
 
 struct ui_Window;
 struct ui_Wrapper;
+
+typedef void (*ui_EventCb)(struct ui_Wrapper*);
+typedef void (*ui_GetListRow)(struct ui_Wrapper* list, String* text, int row);
 
 
 /**
@@ -76,8 +90,10 @@ typedef struct ui_RenderRect {
  */
 typedef struct ui_TextEdit {
     COMMON_INTERFACE
-    TEXT_INTERFACE
     FOCUSABLE_INTERFACE
+    TEXT_INTERFACE
+    FORMAT_TEXT_INTERFACE
+    SCROLLABLE_INTERFACE
     EDITABLE_INTERFACE
 } ui_TextEdit;
 
@@ -87,12 +103,15 @@ typedef struct ui_TextEdit {
 typedef struct ui_Button {
     COMMON_INTERFACE
     TEXT_INTERFACE
+    FORMAT_TEXT_INTERFACE
+    CLICKABLE_INTERFACE
     FOCUSABLE_INTERFACE
 } ui_Button;
 
 typedef struct ui_Label {
     COMMON_INTERFACE
     TEXT_INTERFACE
+    FORMAT_TEXT_INTERFACE
 } ui_Label;
 
 /**
@@ -105,6 +124,9 @@ typedef struct ui_Container {
 typedef struct ui_List {
     COMMON_INTERFACE
     FOCUSABLE_INTERFACE
+    SCROLLABLE_INTERFACE
+    FORMAT_TEXT_INTERFACE
+    ui_GetListRow fetch_row;
 } ui_List;
 
 /**
@@ -149,6 +171,7 @@ typedef struct ui_Window {
     ui_TabOrder *first_tab_order;
     mem_Arena *arena;
     size_t render_cnt;
+    ui_Wrapper* cursor_holder;
 } ui_Window;
 
 
@@ -227,6 +250,22 @@ void ui_window_nav_backward(ui_Window* win);
  * Set focus to this control, if focusable
  */
 void ui_window_set_focus(ui_Window* win, ui_Wrapper* wrap);
+
+/**
+ * Gets the active state of currently focused object.
+ */
+bool ui_window_get_active_state(ui_Window* win);
+
+
+/**
+ * Sets the active state of currently focused object.
+ */
+void ui_window_set_active_state(ui_Window* win, bool active);
+
+/**
+ * Start the UI loop
+ */
+int ui_window_listen();
 
 /**
  * Complete a render loop

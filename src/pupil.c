@@ -79,6 +79,15 @@ void scroll(int c) {
 }
 */
 
+static void get_list_row(ui_Wrapper* wrap, String* text, int row)
+{
+    (void)wrap;
+    const char buf[] = "Detta är en extra lång list sträng!!!";
+    char buf2[100] = {0};
+    sprintf(buf2, "%d %s", row, buf);
+    String_set(text, buf2, strlen(buf2));
+}
+
 
 
 static ui_Window* create_page1(mem_Arena* arena)
@@ -96,20 +105,21 @@ static ui_Window* create_page1(mem_Arena* arena)
                *footer = ui_window_new_control(win, UI_ContainerType),
                *lbl1  = ui_window_new_control(win, UI_LabelType);
 
+    list1->list->fetch_row = get_list_row;
+
     int rows, cols;
     ui_get_screen_size(&cols, &rows);
 
     ui_rect_set(&hdr->rect, 0,0, cols, 2);
-    ui_rect_set(&menu_btn1->rect, 4,1, 10,1);
-    ui_rect_set(&menu_btn2->rect, 11,2, 20,2);
+    ui_rect_set(&menu_btn1->rect, 4,1, 10,4);
+    ui_rect_set(&menu_btn2->rect, 20,2, 30,2);
     ui_rect_set(&list1->rect, 5,5, 30,10);
     ui_rect_set(&footer->rect, 0,rows, cols,rows);
     ui_rect_set(&text_edit->rect, 5,12, 20,16);
     ui_rect_set(&lbl1->rect, 3,rows-1, 20,rows-1);
     menu_btn1->button->horz_align = HorzAlignCenter;
     menu_btn2->button->horz_align = HorzAlignRight;
-    text_edit->textedit->vert_align = VertAlignCenter;
-    text_edit->textedit->horz_align = HorzAlignCenter;
+    menu_btn1->textedit->vert_align = VertAlignCenter;
 
     ui_window_append(win, hdr);
     ui_window_append(win, list1);
@@ -119,7 +129,7 @@ static ui_Window* create_page1(mem_Arena* arena)
     ui_control_append(hdr, menu_btn2);
     ui_control_append(footer, lbl1);
 
-    String_set(&menu_btn1->button->text, "Help", 4);
+    String_set(&menu_btn1->button->text, "Help öäå", 4);
     String_set(&menu_btn2->button->text, "Save", 4);
     String_set(&text_edit->textedit->text, "Textedit", 8);
     String_set(&lbl1->label->text, "Bottomlbl", 9);
@@ -161,9 +171,8 @@ void run_ui(Document *doc)
             //ui_redraw(doc);
         }
 
-        ui_window_render(win);
 
-        if ((c = toupper(ui_listen())) > 0) {
+        if ((c = toupper(ui_window_listen(win))) > 0) {
             //scroll(c);
             //update_ui = true;
             // change page here

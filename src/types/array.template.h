@@ -67,6 +67,7 @@
 #define at CAT(NAME, _at)
 #define clear CAT(NAME, _clear)
 #define new CAT(NAME, _new)
+#define new_from_slice CAT(NAME, _new_from_slice)
 
 #define NAME_SLICE CAT(NAME, Slice)
 
@@ -99,6 +100,7 @@ bool concat(NAME* dest, NAME* src);
 T at(NAME* arr, size_t idx);
 void clear(NAME* arr);
 NAME* new(mem_Arena* arena);
+NAME* new_from_slice(NAME_SLICE* slice, mem_Arena* arena);
 
 
 
@@ -294,7 +296,18 @@ void clear(NAME* arr)
 NAME* new(mem_Arena* arena)
 {
     NAME* obj = (NAME*)mem_arena_alloc(arena, sizeof(NAME));
+    if (!obj) return NULL;
     init(obj, arena);
+    return obj;
+}
+
+NAME* new_from_slice(NAME_SLICE* slice, mem_Arena* arena)
+{
+    NAME* obj = new(arena);
+    if (!obj) return NULL;
+    if (!resize(obj, slice->size+1)) return NULL;
+    memcpy(obj->elements, slice->elements, slice->size);
+    obj->size = slice->size;
     return obj;
 }
 
@@ -315,6 +328,8 @@ NAME* new(mem_Arena* arena)
 #undef concat
 #undef at
 #undef clear
+#undef new
+#undef new_from_slice
 
 #undef T
 #undef NAME
