@@ -69,7 +69,7 @@ bool String_pad(String* string, size_t length, const char ch)
     )
         return false;
 
-    memcpy(&string->elements[string->size], &ch, length);
+    memset(&string->elements[string->size], ch, length);
     string->size += length;
 
     return true;
@@ -98,9 +98,6 @@ StringArr *String_split(String* string, const char* key, mem_Arena* arena)
             linepos = i + keylen;
         }
     }
-
-    if (arr->size == 0)
-        return arr;
 
     // handle the last row
     String *row = (String*)mem_arena_alloc(arena, sizeof(String));

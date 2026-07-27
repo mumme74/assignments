@@ -57,13 +57,15 @@ uint32_t printlen_utf8(const char *str, uint32_t maxlen)
     return len;
 }
 
-const char* utf8_pos_length_in(const char* buf, size_t size, size_t utf8pos)
+const char* utf8_pos_length_in(const char* buf, size_t maxlen, size_t length)
 {
-  size_t len = 0, maxlen = size;
+    if (!buf) return NULL;
+
+    size_t len = 0;
     const char *p = buf;
-    for (; *p != '\0' && --maxlen; ++p) {
+    for (; *p != '\0' && maxlen--; ++p) {
         if ((*p & 0xC0) != 0x80) {
-            if (len++ == utf8pos)
+            if (len++ == length)
                 break;
         }
     }

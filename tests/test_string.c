@@ -175,3 +175,22 @@ TEST(str_suite, str_split_join, "Tests split and join")
 
     mem_arena_free(&arena2);
 }
+
+TEST(str_suite, split_no_match, "Should return 1 string")
+{
+    const char buf[] = "oneline";
+    String_set(&str, buf, strlen(buf));
+    mem_Arena arena2;
+    mem_arena_init(&arena2);
+
+    StringArr *arr = String_split(&str, "\n", &arena2);
+    expectEQ((void*)arr->arena, &arena2);
+    expectEQ(arr->size, 1);
+    expectEQ(arr->elements[0].elements, buf);
+
+    String *s1 = StringArr_join(arr, NULL, &arena2);
+    expectEQ((void*)s1->arena, &arena2);
+    expectEQ(s1->elements, buf);
+
+    mem_arena_free(&arena2);
+}

@@ -66,6 +66,7 @@
 #define concat CAT(NAME, _concat)
 #define at CAT(NAME, _at)
 #define clear CAT(NAME, _clear)
+#define new CAT(NAME, _new)
 
 #define NAME_SLICE CAT(NAME, Slice)
 
@@ -97,6 +98,7 @@ NAME_SLICE slice(NAME* arr, size_t start, int32_t len);
 bool concat(NAME* dest, NAME* src);
 T at(NAME* arr, size_t idx);
 void clear(NAME* arr);
+NAME* new(mem_Arena* arena);
 
 
 
@@ -287,6 +289,13 @@ void clear(NAME* arr)
 
     T empty = {0};
     arr->elements[0] = empty;
+}
+
+NAME* new(mem_Arena* arena)
+{
+    NAME* obj = (NAME*)mem_arena_alloc(arena, sizeof(NAME));
+    init(obj, arena);
+    return obj;
 }
 
 
