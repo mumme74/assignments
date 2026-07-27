@@ -61,9 +61,9 @@ const char* utf8_pos_length_in(const char* buf, size_t maxlen, size_t length)
 {
     if (!buf) return NULL;
 
-    size_t len = 0;
+    size_t len = 0; maxlen++;
     const char *p = buf;
-    for (; *p != '\0' && maxlen--; ++p) {
+    for (; *p != '\0' && --maxlen; ++p) {
         if ((*p & 0xC0) != 0x80) {
             if (len++ == length)
                 break;

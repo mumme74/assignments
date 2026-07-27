@@ -177,10 +177,10 @@ void run_ui(Document *doc)
             //update_ui = true;
             // change page here
             switch (c) {
-            case Key_Tab: ui_window_nav_forward(win); break;
-            case 'R': ui_repaint(doc, &arena); break;
-            case 'Q': contin = false; break;
-            case 'P': printf("print"); fflush(stdout); break;
+            //case Key_Tab: ui_window_nav_forward(win); break;
+            //case 'R': ui_repaint(doc, &arena); break;
+            //case 'Q': contin = false; break;
+            //case 'P': printf("print"); fflush(stdout); break;
             default: break;
                 //printf("unhandled: %d  %c\n", c, c);
             }

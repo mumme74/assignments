@@ -126,6 +126,7 @@ typedef struct ui_List {
     FOCUSABLE_INTERFACE
     SCROLLABLE_INTERFACE
     FORMAT_TEXT_INTERFACE
+    CLICKABLE_INTERFACE
     ui_GetListRow fetch_row;
 } ui_List;
 
@@ -267,10 +268,6 @@ void ui_window_set_active_state(ui_Window* win, bool active);
  */
 int ui_window_listen();
 
-/**
- * Complete a render loop
- */
-void ui_window_render(ui_Window* win);
 
 // --------------------------------------------------------s
 

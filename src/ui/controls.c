@@ -382,6 +382,25 @@ static void render_list(ui_List* list, ui_RenderRect* rect, bool has_focus)
     ui_one_format(bg_window);
 }
 
+/**
+ * Keeps cursor within 0-max
+ */
+static void keep_visible(int *scroll, int *cursor, int max)
+{
+    if (*cursor >= max) {
+        *scroll += *cursor - max+1;
+        *cursor -= *cursor - max+1;
+    } else if (*cursor < 0) {
+        *scroll += *cursor;
+        *cursor -= *cursor;
+    } else if (*cursor - *scroll < 0) {
+        *scroll -= *scroll + *cursor;
+    } else if (*cursor - *scroll >=max) {
+        *scroll -= *cursor - *scroll;
+    }
+    *scroll = MAX(0, *scroll);
+}
+
 static void render_textedit(ui_TextEdit* edit, ui_RenderRect* rect, bool has_focus)
 {
     int fg_highlight = edit->activated ? edit->active_fg_color : edit->focus_fg_color,
@@ -392,18 +411,53 @@ static void render_textedit(ui_TextEdit* edit, ui_RenderRect* rect, bool has_foc
         has_focus ? fg_highlight : edit->fg_color,
         has_focus ? bg_highlight : edit->bg_color
     };
+    ui_formats(formats, sizeof(formats)/sizeof(formats[0]));
 
+
+    StringArr *lines = String_split(&edit->text, "\n", &render_arena);
+    if (!lines) return;
+
+    int x = rect->top_left.x,
+        y = rect->top_left.y,
+        width = rect->bottom_right.x - x,
+        height = rect->bottom_right.y - y;
+
+    // Make sure cursor stays within the text
+    keep_visible(&edit->scroll.x, &edit->cursor.x, width);
+    keep_visible(&edit->scroll.y, &edit->cursor.y, height);
+
+    size_t cur_idx = edit->scroll.y + edit->cursor.y;
+    if (cur_idx >= lines->size) {
+        edit->cursor.y -= cur_idx - lines->size+1;
+        cur_idx = MIN(cur_idx, lines->size)-1;
+    }
+
+    // con't move past line len
+    int line_len = String_utf8_len(&lines->elements[cur_idx]),
+        cur_len = edit->scroll.x + edit->cursor.x;
+    if (cur_len >= line_len) {
+        edit->cursor.x -= cur_len - line_len;
+    }
+
+    // scroll
     if (edit->activated) {
         ui_set_cursor_pos(rect->top_left.x + edit->cursor.x,
                           rect->top_left.y + edit->cursor.y);
         edit->wrapper->window->cursor_holder = edit->wrapper;
     }
 
-    StringArr *lines = lines_from_rect(
-        &edit->text, rect, edit->horz_align, edit->vert_align);
+    for (int r = edit->scroll.y; y < rect->bottom_right.y; y++, r++) {
 
-    ui_formats(formats, sizeof(formats)/sizeof(formats[0]));
-    draw_lines(lines, rect->top_left.x, rect->top_left.y);
+        StringSlice sl = String_uft8_slice(&lines->elements[r], edit->scroll.x, width);
+        String* row = String_new_from_slice(&sl, &render_arena);
+
+        size_t prnlen = String_utf8_len(row);
+        if (prnlen < (size_t)width)
+            String_pad(row, width - prnlen, ' ');
+
+        ui_printf_at_pos(x, y, "%s", row->elements);
+    }
+
     ui_one_format(bg_window);
 }
 
@@ -450,21 +504,142 @@ static void render(ui_Wrapper *wrap, ui_Wrapper* focus_ctl, ui_Point top_left)
     }
 }
 
-static void text_edit_input(ui_TextEdit* edit, int c)
+static void window_render(ui_Window* win)
+{
+    if (!win->render_cnt++) {
+        ui_one_format(bg_window);
+        ui_render();
+    }
+
+    if (is_dirty(win->root)) {
+        ui_Point pnt = {0};
+        render(win->root, win->focus_control, pnt);
+        ui_set_cursor_show(win->cursor_holder != NULL &&
+                           win->cursor_holder == win->focus_control);
+        ui_render();
+    }
+}
+
+
+static bool list_input(ui_List* list, int c)
+{
+    switch (c) {
+    case Key_Enter:
+        if (list->clicked)
+            (*list->clicked)(list->wrapper);
+        return true;
+    default:
+        return true;
+    }
+}
+
+static bool textedit_input(ui_TextEdit* edit, int c)
 {
     int line = edit->scroll.y + edit->cursor.y,
         col  = edit->scroll.x + edit->cursor.x;
-    (void)line;
-    (void)col;
+
+    // find index in string
+    const char *p = edit->text.elements,
+               *end = &edit->text.elements[edit->text.size-1]+1;
+    {
+        int lines = 0, cols = 0;
+        for (; *p != 0 && p < end && (cols != col || lines != line); ++p) {
+            if (*p == '\n')
+                lines++;
+            else if (lines == line)
+                cols++;
+        }
+    }
+    size_t pos = p - edit->text.elements;
+
+    static size_t utf8_rune_len = 0,
+                  utf8_rune_idx = 0;
+    static char buffer[5] = {0};
+
     switch (c) {
-    case Key_Del:
-        break;
+    case Key_Del: {
+        ++p;
+        char *prev;
+        size_t idx = pos+1;
+        // erase a complete rune
+        do {
+            if (idx < 1) break;
+            prev = &edit->text.elements[--idx];
+        } while (((*prev) & 0xC0) == 0x80);
+
+        // can back up
+        if (prev < p) {
+            StringSlice left = String_slice(&edit->text, 0, MAX(idx-1, 0)),
+                        right = String_slice(&edit->text, pos, -1);
+            String *lStr = String_new_from_slice(&left, &render_arena),
+                   *rStr = String_new_from_slice(&right, &render_arena);
+            String_set(&edit->text, lStr->elements, lStr->size);
+            String_append_str(&edit->text, rStr->elements, rStr->size);
+
+            // was it a new line
+            if (--edit->cursor.x < 0) {
+                edit->cursor.y = MAX(edit->cursor.y -1, 0);
+                for (p = prev; p >= edit->text.elements && *p != '\n'; --p)
+                    ;
+                edit->cursor.x = prev - p - 2;
+            }
+
+            edit->wrapper->dirty = true;
+        }
+    }   return true;
     case Key_Home:
-        break;
-    case Key_End:
-        break;
-    default: {
-    }   break;
+        edit->cursor.x = edit->scroll.x = 0;
+        edit->wrapper->dirty = true;
+        return true;
+    case Key_End: {
+        StringArr* lines = String_split(&edit->text, "\n", &render_arena);
+        size_t printlen = String_utf8_len(&lines->elements[line]),
+               len = edit->wrapper->rect.bottom_right.x
+                     - edit->wrapper->rect.top_left.x;
+        if (printlen > len) {
+            edit->cursor.x = len;
+            edit->scroll.x = printlen - len;
+        }
+
+        edit->wrapper->dirty = true;
+    }   return true;
+    case '\n':
+        edit->cursor.x = -1;
+        edit->cursor.y++;
+        // fallthrough
+    default:
+        if ((c & 0xC0) == 0xC0) {
+            // start a multibyte rune
+            utf8_rune_len = 0;
+            utf8_rune_idx = 0;
+            for (size_t i = 4; i < 8; ++i)
+                if ((c & 0x01) != 0)
+                    utf8_rune_len++;
+            buffer[utf8_rune_idx++] = (char)c;
+        } else if ((c & 0xC0) == 0x80) {
+            buffer[utf8_rune_idx++] = (char)c;
+            if (utf8_rune_len == utf8_rune_idx) {
+                // insert rune
+                StringSlice left = String_slice(&edit->text, 0, pos),
+                            right = String_slice(&edit->text, pos, -1);
+                String *lStr = String_new_from_slice(&left, &render_arena),
+                       *rStr = String_new_from_slice(&right, &render_arena);
+                String_set(&edit->text, lStr->elements, lStr->size);
+                String_append_str(&edit->text, buffer, utf8_rune_idx);
+                String_append_str(&edit->text, rStr->elements, rStr->size);
+                // clear buffer
+                utf8_rune_idx = utf8_rune_len = 0;
+                memset(buffer, 0, sizeof(buffer));
+
+                edit->cursor.x++;
+                edit->wrapper->dirty = true;
+            }
+        } else {
+            String_insert(&edit->text, (char)c, pos);
+            edit->cursor.x++;
+            edit->wrapper->dirty = true;
+        }
+        return true;
     }
 }
 
@@ -531,16 +706,18 @@ static void move_cursor(ui_Window* win, int x, int y)
     ui_set_cursor_pos(offset_x + cursor->x, offset_y + cursor->y);
 }
 
-static void handle_input(ui_Window* win, int c)
+static bool handle_input(ui_Window* win, int c)
 {
     if (!ui_window_get_active_state(win))
-        return;
+        return false;
 
     switch (win->focus_control->type) {
     case UI_TextEditType:
-        text_edit_input(win->focus_control->textedit, c);
-        break;
-    default: break;
+        return textedit_input(win->focus_control->textedit, c);
+    case UI_ListType:
+        return list_input(win->focus_control->list, c);
+    default:
+        return false;
     }
 }
 
@@ -618,6 +795,7 @@ ui_Wrapper* ui_window_new_control(ui_Window* win, enum ui_ControlType type)
         INIT_FORMAT_TEXT_INTERFACE(wrap->list)
         INIT_FOCUSABLE_INTERFACE(wrap->list)
         INIT_SCROLLABLE_INTERFACE(wrap->list)
+        INIT_CLICKABLE_INTERFACE(wrap->list)
         wrap->list->fetch_row = NULL;
         break;
     case UI_TextEditType:
@@ -794,7 +972,9 @@ void ui_window_set_active_state(ui_Window* win, bool active)
 
 int ui_window_listen(ui_Window* win)
 {
-    ui_window_render(win);
+    mem_arena_init(&render_arena);
+
+    window_render(win);
 
     int c;
     if ((c = ui_listen()) > 0) {
@@ -802,7 +982,8 @@ int ui_window_listen(ui_Window* win)
         case Key_Enter:
             if (!ui_window_get_active_state(win))
                 ui_window_set_active_state(win, true);
-            call_click_event(win->focus_control);
+            else if (!handle_input(win, c))
+                call_click_event(win->focus_control);
             break;
         case Key_Esc:
             if (ui_window_get_active_state(win))
@@ -819,28 +1000,10 @@ int ui_window_listen(ui_Window* win)
         }
     }
 
+    mem_arena_free(&render_arena);
+
     return c;
 }
-
-
-void ui_window_render(ui_Window* win)
-{
-    mem_arena_init(&render_arena);
-    if (!win->render_cnt++) {
-        ui_one_format(bg_window);
-        ui_render();
-    }
-
-    if (is_dirty(win->root)) {
-        ui_Point pnt = {0};
-        render(win->root, win->focus_control, pnt);
-        ui_set_cursor_show(win->cursor_holder != NULL);
-        ui_render();
-    }
-
-    mem_arena_free(&render_arena);
-}
-
 
 // ---------------------------------------------------------------
 
