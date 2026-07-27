@@ -37,19 +37,19 @@ enum Keys {
 
 struct _Format
 {
-    const char *Bold,
-               *ResetBold,
-               *Dim,
-               *RestDim,
-               *Underlined,
-               *ResetUnderlined,
-               *Blink,
-               *ResetBlink,
-               *Invert,
-               *ResetInvert,
-               *Hidden,
-               *ResetHidden,
-               *ResetAll;
+    int Bold,
+        ResetBold,
+        Dim,
+        RestDim,
+        Underlined,
+        ResetUnderlined,
+        Blink,
+        ResetBlink,
+        Invert,
+        ResetInvert,
+        Hidden,
+        ResetHidden,
+        ResetAll;
 };
 /// Formating options
 extern const struct _Format Format;
@@ -59,23 +59,23 @@ extern const struct _Format Format;
  * Colors to render text with
  */
 struct _FrontColors {
-    const char *Default,
-               *Black,
-               *Red,
-               *Green,
-               *Yellow,
-               *Blue,
-               *Magenta,
-               *Cyan,
-               *LightGray,
-               *DarkGray,
-               *LightRed,
-               *LightGreen,
-               *LightYellow,
-               *LightBlue,
-               *LightMAgenta,
-               *LightCyan,
-               *White;
+    int Default,
+        Black,
+        Red,
+        Green,
+        Yellow,
+        Blue,
+        Magenta,
+        Cyan,
+        LightGray,
+        DarkGray,
+        LightRed,
+        LightGreen,
+        LightYellow,
+        LightBlue,
+        LightMAgenta,
+        LightCyan,
+        White;
 };
 
 /// Colors to render text with
@@ -83,35 +83,36 @@ extern const struct _FrontColors FrontColors;
 
 
 struct _BackColors {
-    const char *Default,
-               *Black,
-               *Red,
-               *Green,
-               *Yellow,
-               *Blue,
-               *Magenta,
-               *Cyan,
-               *LightGray,
-               *DarkGray,
-               *LightRed,
-               *LightGreen,
-               *LightYellow,
-               *LightBlue,
-               *LightMagenta,
-               *LightCyan,
-               *White;
+    int Default,
+        Black,
+        Red,
+        Green,
+        Yellow,
+        Blue,
+        Magenta,
+        Cyan,
+        LightGray,
+        DarkGray,
+        LightRed,
+        LightGreen,
+        LightYellow,
+        LightBlue,
+        LightMagenta,
+        LightCyan,
+        White;
 };
 
 /// Colors to render background with
 extern const struct _BackColors BackColors;
+
 
 // acts on frame
 
 /**
  * Sets format and/or color
  */
-void ui_formats(const char *formats[], size_t size);
-void ui_one_format(const char* format);
+void ui_formats(int formats[], size_t sz);
+void ui_one_format(int format);
 
 void ui_get_screen_size(int* cols, int* rows);
 

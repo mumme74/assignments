@@ -11,7 +11,7 @@
 
 #define COMMON_INTERFACE \
     const char *name;    \
-    const char *bg_color; \
+    int bg_color; \
     struct ui_Wrapper *wrapper; \
     bool shown;
 
@@ -19,13 +19,13 @@
     String text;         \
     enum ui_HorzAlign horz_align; \
     enum ui_VertAlign vert_align; \
-    const char *fg_color, \
-               *format;
+    int fg_color, \
+        format;
 
 #define FOCUSABLE_INTERFACE \
-    const char *focus_fg_color, \
-               *focus_bg_color, \
-               *focus_format; \
+    int focus_fg_color, \
+        focus_bg_color, \
+        focus_format; \
     bool enabled;
 
 #define EDITABLE_INTERFACE \
@@ -148,6 +148,7 @@ typedef struct ui_Window {
                *focus_control; ///< the control that has focus
     ui_TabOrder *first_tab_order;
     mem_Arena *arena;
+    size_t render_cnt;
 } ui_Window;
 
 
@@ -156,6 +157,13 @@ typedef struct ui_Window {
  */
 void ui_rect_set(ui_RenderRect* rect, int x1, int y1, int x2, int y2);
 
+/**
+ * Set the default colors
+ */
+void ui_set_default_colors(
+    int fg_color, int bg_color, int container_bg,
+    int fg_focus_color, int bg_focus_color,
+    int bg_window);
 
 /**
  * Initialize a window
@@ -214,6 +222,11 @@ void ui_window_nav_forward(ui_Window* win);
  * Navigate to previous focusable tabstop
  */
 void ui_window_nav_backward(ui_Window* win);
+
+/**
+ * Set focus to this control, if focusable
+ */
+void ui_window_set_focus(ui_Window* win, ui_Wrapper* wrap);
 
 /**
  * Complete a render loop

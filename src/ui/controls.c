@@ -7,9 +7,9 @@
 #include "utils.h"
 
 
-#define INIT_COMMON_INTERFACE(obj, ctl_name) \
+#define INIT_COMMON_INTERFACE(obj, ctl_name, container) \
     (obj)->name = ctl_name;                  \
-    (obj)->bg_color = FrontColors.LightGray; \
+    (obj)->bg_color = container ? bg_container : bg_default; \
     (obj)->wrapper = wrap;                   \
     (obj)->shown = true;
 
@@ -17,18 +17,25 @@
     String_init(&(obj)->text, arena); \
     (obj)->horz_align = HorzAlignLeft; \
     (obj)->vert_align = VertAlignTop; \
-    (obj)->fg_color = FrontColors.Black;
+    (obj)->fg_color = fg_default; \
+    (obj)->format = Format.ResetAll;
 
 #define INIT_FOCUSABLE_INTERFACE(obj) \
-    (obj)->focus_bg_color = BackColors.LightGreen; \
-    (obj)->focus_fg_color = FrontColors.LightRed; \
-    (obj)->focus_format = NULL; \
+    (obj)->focus_bg_color = bg_focus_color; \
+    (obj)->focus_fg_color = fg_focus_color; \
+    (obj)->focus_format = Format.ResetAll; \
     (obj)->enabled = true;
 
 #define INIT_EDITABLE_INTERFACE(obj) \
     (obj)->enabled = true;
 
 static mem_Arena render_arena;
+static int fg_default = -1,
+           bg_default = -1,
+           bg_container = -1,
+           fg_focus_color = -1,
+           bg_focus_color = -1,
+           bg_window = -1;
 
 static void wrap_insert(ui_Wrapper **handle, ui_Wrapper *item, int idx)
 {
@@ -84,6 +91,7 @@ static void wrap_init(ui_Wrapper* wrap, ui_Window* win, enum ui_ControlType type
     memset(wrap, 0, sizeof(ui_Wrapper));
     wrap->window = win;
     wrap->type = type;
+    wrap->dirty = true;
 }
 
 /// checks if any child is dirty (need repaint)
@@ -91,6 +99,8 @@ static bool is_dirty(ui_Wrapper *wrap)
 {
     for (; wrap != NULL; wrap = wrap->next_sibling) {
         if (wrap->dirty)
+            return true;
+        if (wrap->first_child && is_dirty(wrap->first_child))
             return true;
     }
 
@@ -115,17 +125,6 @@ static void grow_rect_from_children(ui_Wrapper* wrap, ui_RenderRect *rect)
             grow_rect_from_children(wrap->first_child, rect);
     }
 }
-
-/*
-static ui_Wrapper* first_sibling(ui_Wrapper* wrap)
-{
-    ui_Wrapper *tmp = wrap->prev_sibling;
-    if (!tmp) return wrap;
-
-    for (; tmp->prev_sibling != NULL ; tmp = tmp->prev_sibling) ;
-
-    return tmp;
-}*/
 
 static ui_Wrapper* last_sibling(ui_Wrapper* wrap)
 {
@@ -192,41 +191,43 @@ static ui_Wrapper* prev_focusable(
 }
 
 static void string_row_aligned(
-    String* str, size_t len, enum ui_HorzAlign h_align
+    String* dest, String* src, size_t len, enum ui_HorzAlign h_align
 ) {
-    StringSlice sl = String_uft8_slice(str, 0, len);
+    StringSlice sl = String_uft8_slice(src, 0, len+1);
 
     switch (h_align) {
     case HorzAlignLeft:
-        String_set_from_slice(str, &sl);
+        String_append_from_slice(dest, &sl);
         if (sl.size < len)
-            String_pad(str, len - sl.size, ' ');
+            String_pad(dest, len - sl.size, ' ');
         break;
     case HorzAlignRight:
         if (sl.size < len)
-            String_pad(str, len - sl.size, ' ');
-        String_set_from_slice(str, &sl);
+            String_pad(dest, len - sl.size, ' ');
+        String_set_from_slice(dest, &sl);
         break;
-    case HorzAlignCenter:
+    case HorzAlignCenter: {
+        size_t half = (len - sl.size) / 2,
+               remain = (len - sl.size) % 2;
         if (sl.size < len)
-            String_pad(str, (len - sl.size) / 2, ' ');
-        String_append_from_slice(str, &sl);
+            String_pad(dest, half, ' ');
+        String_append_from_slice(dest, &sl);
         if (sl.size < len)
-            String_pad(str, (len - sl.size) / 2, ' ');
-        break;
+            String_pad(dest, half+remain, ' ');
+       }   break;
     default: break;
     }
 }
 
-static String* string_from_rect(
+static StringArr* lines_from_rect(
     String* text, ui_RenderRect* rect,
     enum ui_HorzAlign h_align, enum ui_VertAlign v_align
 ) {
-    String* str = (String*)mem_arena_alloc(&render_arena, sizeof(String));
     size_t len = rect->bottom_right.x - rect->top_left.x,
            rows = rect->bottom_right.y - rect->top_left.y+1;
 
-    StringArr *arr = String_split(text, "\n", &render_arena);
+    StringArr *arr = String_split(text, "\n", &render_arena),
+              *lines = StringArr_new(&render_arena);
 
     int renderOffset = 0;
     switch (v_align){
@@ -239,63 +240,78 @@ static String* string_from_rect(
     }
 
     for (size_t i = 0; i < rows; ++i) {
-        if (renderOffset < 1)
-            string_row_aligned(str, len, h_align);
+        ssize_t idx = i - renderOffset;
+
+        String* line = String_new(&render_arena);
+
+        if (idx < 0 || idx >= (ssize_t)arr->size)
+            String_pad(line, len, ' ');
+        else
+            string_row_aligned(line, &arr->elements[idx], len, h_align);
+
+        StringArr_push_back(lines, *line);
     }
 
-    return str;
+    return lines;
+}
+
+static void draw_lines(StringArr* lines, int x, int y)
+{
+    for (size_t i = 0; i < lines->size; i++) {
+        const char *line = lines->elements[i].elements;
+        ui_printf_at_pos(x, y+i, "%s", line);
+    }
 }
 
 static void render_button(ui_Wrapper *wrap, ui_RenderRect* rect, bool has_focus)
 {
     ui_Button *btn = wrap->button;
-    const char *formats[] = {
-        has_focus ? btn->focus_bg_color : btn->bg_color,
+    int formats[] = {
+        has_focus ? btn->focus_format : btn->format,
         has_focus ? btn->focus_fg_color : btn->fg_color,
-        has_focus ? btn->focus_format : btn->format
+        has_focus ? btn->focus_bg_color : btn->bg_color,
     };
 
-    String *str = string_from_rect(
+    StringArr *lines = lines_from_rect(
         &btn->text, rect, btn->horz_align, btn->vert_align);
 
     ui_formats(formats, sizeof(formats)/sizeof(formats[0]));
-    ui_printf_at_pos(rect->top_left.x, rect->top_left.y, "%s", str->elements);
-    ui_one_format(Format.ResetAll);
+    draw_lines(lines, rect->top_left.x, rect->top_left.y);
+    ui_one_format(bg_window);
 }
 
 static void render_container(ui_Wrapper *wrap, ui_RenderRect* rect)
 {
     ui_Container *cont = wrap->container;
 
-    ui_one_format(cont->bg_color);
     size_t len = rect->bottom_right.x - rect->top_left.x;
+    if (len < 1) return;
 
-    String row;
-    String_init(&row, &render_arena);
-    String_pad(&row, len, ' ');
+    String *row = String_new(&render_arena);
+    String_pad(row, len, ' ');
 
-    int x = rect->top_left.x,
-        y = rect->top_left.y;
+    int x = rect->top_left.x, y = rect->top_left.y;
+
+    ui_one_format(cont->bg_color);
     for (; y <= rect->bottom_right.y; y++) {
-        ui_printf_at_pos(x, y, "%s", row.elements);
+        ui_printf_at_pos(x, y, "%s", row->elements);
     }
 
-    ui_one_format(Format.ResetAll);
+    ui_one_format(bg_window);
 }
 
 static void render_label(ui_Wrapper* wrap, ui_RenderRect* rect)
 {
     ui_Label *lbl = wrap->label;
-    const char *formats[] = {
-        lbl->bg_color, lbl->fg_color, lbl->format
-    };
 
-    String *str = string_from_rect(
+    StringArr *lines = lines_from_rect(
         &lbl->text, rect, lbl->horz_align, lbl->vert_align);
 
+    int formats[] = { lbl->format, lbl->bg_color, lbl->fg_color};
+
     ui_formats(formats, sizeof(formats)/sizeof(formats[0]));
-    ui_printf_at_pos(rect->top_left.x, rect->top_left.y, "%s", str->elements);
-    ui_one_format(Format.ResetAll);
+    draw_lines(lines, rect->top_left.x, rect->top_left.y);
+    ui_one_format(bg_window);
 }
 
 static void render_list(ui_Wrapper* wrap, ui_RenderRect* rect, bool has_focus)
@@ -315,30 +331,31 @@ static void render_list(ui_Wrapper* wrap, ui_RenderRect* rect, bool has_focus)
         ui_printf_at_pos(x, y, "%s", row.elements);
     }
 
-    ui_one_format(Format.ResetAll);
+    ui_one_format(bg_window);
 }
 
 static void render_textedit(ui_Wrapper* wrap, ui_RenderRect* rect, bool has_focus)
 {
-    ui_Button *btn = wrap->button;
-    const char *formats[] = {
-        has_focus ? btn->focus_bg_color : btn->bg_color,
-        has_focus ? btn->focus_fg_color : btn->fg_color,
-        has_focus ? btn->focus_format : btn->format
+    ui_TextEdit *edit = wrap->textedit;
+    int formats[] = {
+        has_focus ? edit->focus_format : edit->format,
+        has_focus ? edit->focus_fg_color : edit->fg_color,
+        has_focus ? edit->focus_bg_color : edit->bg_color
     };
 
-    String *str = string_from_rect(
-        &btn->text, rect, btn->horz_align, btn->vert_align);
+    StringArr *lines = lines_from_rect(
+        &edit->text, rect, edit->horz_align, edit->vert_align);
 
     ui_formats(formats, sizeof(formats)/sizeof(formats[0]));
-    ui_printf_at_pos(rect->top_left.x, rect->top_left.y, "%s", str->elements);
-    ui_one_format(Format.ResetAll);
+    draw_lines(lines, rect->top_left.x, rect->top_left.y);
+    ui_one_format(bg_window);
 }
 
 
 static void render(ui_Wrapper *wrap, ui_Wrapper* focus_ctl, ui_Point top_left)
 {
     for (; wrap != NULL; wrap = wrap->next_sibling) {
+
         ui_RenderRect rect = {
             {
                 .x = wrap->rect.top_left.x + top_left.x,
@@ -351,6 +368,7 @@ static void render(ui_Wrapper *wrap, ui_Wrapper* focus_ctl, ui_Point top_left)
         };
 
         bool has_focus = wrap == focus_ctl;
+        wrap->dirty = false;
 
         switch (wrap->type) {
         case UI_ButtonType:
@@ -370,6 +388,9 @@ static void render(ui_Wrapper *wrap, ui_Wrapper* focus_ctl, ui_Point top_left)
             break;
         default: break;
         }
+
+        if (wrap->first_child && ui_control_get_shown(wrap))
+            render(wrap->first_child, focus_ctl, rect.top_left);
     }
 }
 
@@ -394,6 +415,14 @@ void ui_window_init(ui_Window* win, mem_Arena* arena)
     win->focus_control = NULL;
     win->first_tab_order = NULL;
     win->arena = arena;
+    win->render_cnt = 0;
+
+    if (fg_default < 0) fg_default = FrontColors.Blue;
+    if (bg_default < 0) bg_default = BackColors.LightGreen;
+    if (bg_container < 0) bg_container = BackColors.DarkGray;
+    if (bg_focus_color < 0) bg_focus_color = BackColors.Green;
+    if (fg_focus_color < 0) fg_focus_color = BackColors.Cyan;
+    if (bg_window < 0) bg_window = BackColors.LightMagenta;
 }
 
 
@@ -410,31 +439,32 @@ ui_Wrapper* ui_window_new_control(ui_Window* win, enum ui_ControlType type)
     case UI_ButtonType:
         wrap->button = (ui_Button*)mem_arena_alloc(win->arena, sizeof(ui_Button));
         if (!wrap->button) return NULL;
-        INIT_COMMON_INTERFACE(wrap->button, "Button")
+        INIT_COMMON_INTERFACE(wrap->button, "Button", false)
         INIT_TEXT_INTERFACE(wrap->button, win->arena)
         INIT_FOCUSABLE_INTERFACE(wrap->button)
         break;
     case UI_ContainerType:
         wrap->container = (ui_Container*)mem_arena_alloc(win->arena, sizeof(ui_Container));
         if (!wrap->container) return NULL;
-        INIT_COMMON_INTERFACE(wrap->container, "Container")
+        INIT_COMMON_INTERFACE(wrap->container, "Container", true)
+        wrap->container->bg_color = BackColors.LightGray;
         break;
     case UI_LabelType:
         wrap->label = (ui_Label*)mem_arena_alloc(win->arena, sizeof(ui_Label));
         if (!wrap->label) return NULL;
-        INIT_COMMON_INTERFACE(wrap->label, "Label")
+        INIT_COMMON_INTERFACE(wrap->label, "Label", false)
         INIT_TEXT_INTERFACE(wrap->label, win->arena)
         break;
     case UI_ListType:
         wrap->list = (ui_List*)mem_arena_alloc(win->arena, sizeof(ui_List));
         if (!wrap->list) return NULL;
-        INIT_COMMON_INTERFACE(wrap->list, "List")
+        INIT_COMMON_INTERFACE(wrap->list, "List", false)
         INIT_FOCUSABLE_INTERFACE(wrap->list)
         break;
     case UI_TextEditType:
         wrap->textedit = (ui_TextEdit*)mem_arena_alloc(win->arena, sizeof(ui_TextEdit));
         if (!wrap->textedit) return NULL;
-        INIT_COMMON_INTERFACE(wrap->textedit, "Textedit")
+        INIT_COMMON_INTERFACE(wrap->textedit, "Textedit", false)
         INIT_TEXT_INTERFACE(wrap->textedit, win->arena)
         INIT_FOCUSABLE_INTERFACE(wrap->textedit)
         INIT_EDITABLE_INTERFACE(wrap->textedit)
@@ -509,7 +539,7 @@ void ui_window_nav_forward(ui_Window* win)
             tab = tab->next;
         } while (tab != win->first_tab_order);
 
-        *focus_obj = tab->control;
+        ui_window_set_focus(win, tab->control);
         return;
     }
 
@@ -517,13 +547,14 @@ void ui_window_nav_forward(ui_Window* win)
 
     if (!*focus_obj) {
         after_curobj = true;
-        *focus_obj = next_focusable(win->root, win->root, &after_curobj);
+        ui_window_set_focus(win, next_focusable(win->root, win->root, &after_curobj));
         return;
     }
 
     tmp = next_focusable(win->root, *focus_obj, &after_curobj);
     if (!tmp) tmp = next_focusable(win->root, *focus_obj, &after_curobj);
-    if (tmp) *focus_obj = tmp;
+    if (tmp)
+         ui_window_set_focus(win, tmp);
 }
 
 void ui_window_nav_backward(ui_Window* win)
@@ -541,7 +572,7 @@ void ui_window_nav_backward(ui_Window* win)
             tab = tab->prev;
         } while (tab != win->first_tab_order);
 
-        *focus_obj = tab->control;
+        ui_window_set_focus(win, tab->control);
         return;
     }
 
@@ -549,23 +580,37 @@ void ui_window_nav_backward(ui_Window* win)
 
     if (!*focus_obj) {
         after_curobj = true;
-        *focus_obj = prev_focusable(win->root, win->root, &after_curobj);
+         ui_window_set_focus(win, prev_focusable(win->root, win->root, &after_curobj));
         return;
     }
 
     tmp = prev_focusable(win->root, *focus_obj, &after_curobj);
     if (!tmp) tmp = prev_focusable(win->root, *focus_obj, &after_curobj);
-    if (tmp) *focus_obj = tmp;
+    if (tmp)
+         ui_window_set_focus(win, tmp);
+}
+
+void ui_window_set_focus(ui_Window* win, ui_Wrapper* wrap)
+{
+    if (wrap && ui_control_can_focus(wrap)) {
+        win->focus_control = wrap;
+        wrap->dirty = true;
+    }
 }
 
 
 void ui_window_render(ui_Window* win)
 {
     mem_arena_init(&render_arena);
+    if (!win->render_cnt++) {
+        ui_one_format(bg_window);
+        ui_render();
+    }
 
     if (is_dirty(win->root)) {
         ui_Point pnt = {0};
         render(win->root, win->focus_control, pnt);
+        ui_render();
     }
 
     mem_arena_free(&render_arena);
@@ -584,6 +629,7 @@ void ui_control_append(ui_Wrapper* cont, ui_Wrapper* item)
 {
     item->parent = cont;
     wrap_append(&cont->first_child, item);
+    grow_rect_from_children(cont, &cont->rect);
 }
 
 void ui_control_remove(ui_Wrapper* cont, ui_Wrapper* item)

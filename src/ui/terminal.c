@@ -160,78 +160,80 @@ static int handle_escape_sequence(int c)
 // VT100 code from: https://gist.github.com/viniciusdaniel/53a98cbb1d8cac1bb473da23f5708836
 
 const struct _Format Format = {
-    .Bold            = "1",
-    .ResetBold       = "21",
-    .Dim             = "2",
-    .RestDim         = "22",
-    .Underlined      = "4",
-    .ResetUnderlined = "24",
-    .Blink           = "5",
-    .ResetBlink      = "25",
-    .Invert          = "7",
-    .ResetInvert     = "27",
-    .Hidden          = "8",
-    .ResetHidden     = "28",
-    .ResetAll        = "0"
+    .Bold            = 1,
+    .ResetBold       = 21,
+    .Dim             = 2,
+    .RestDim         = 22,
+    .Underlined      = 4,
+    .ResetUnderlined = 24,
+    .Blink           = 5,
+    .ResetBlink      = 25,
+    .Invert          = 7,
+    .ResetInvert     = 27,
+    .Hidden          = 8,
+    .ResetHidden     = 28,
+    .ResetAll        = 0
 };
 
 
 const struct _FrontColors FrontColors = {
-    .Default      = "39",
-    .Black        = "30",
-    .Red          = "31",
-    .Green        = "32",
-    .Yellow       = "33",
-    .Blue         = "34",
-    .Magenta      = "35",
-    .Cyan         = "36",
-    .LightGray    = "37",
-    .DarkGray     = "90",
-    .LightRed     = "91",
-    .LightGreen   = "92",
-    .LightYellow  = "93",
-    .LightBlue    = "94",
-    .LightMAgenta = "95",
-    .LightCyan    = "96",
-    .White        = "97"
+    .Default      = 39,
+    .Black        = 30,
+    .Red          = 31,
+    .Green        = 32,
+    .Yellow       = 33,
+    .Blue         = 34,
+    .Magenta      = 35,
+    .Cyan         = 36,
+    .LightGray    = 37,
+    .DarkGray     = 90,
+    .LightRed     = 91,
+    .LightGreen   = 92,
+    .LightYellow  = 93,
+    .LightBlue    = 94,
+    .LightMAgenta = 95,
+    .LightCyan    = 96,
+    .White        = 97
 };
 
 const struct _BackColors BackColors = {
-    .Default      = "49",
-    .Black        = "40",
-    .Red          = "41",
-    .Green        = "42",
-    .Yellow       = "43",
-    .Blue         = "44",
-    .Magenta      = "45",
-    .Cyan         = "46",
-    .LightGray    = "47",
-    .DarkGray     = "100",
-    .LightRed     = "101",
-    .LightGreen   = "102",
-    .LightYellow  = "103",
-    .LightBlue    = "104",
-    .LightMagenta = "105",
-    .LightCyan    = "106",
-    .White        = "107"
+    .Default      = 49,
+    .Black        = 40,
+    .Red          = 41,
+    .Green        = 42,
+    .Yellow       = 43,
+    .Blue         = 44,
+    .Magenta      = 45,
+    .Cyan         = 46,
+    .LightGray    = 47,
+    .DarkGray     = 100,
+    .LightRed     = 101,
+    .LightGreen   = 102,
+    .LightYellow  = 103,
+    .LightBlue    = 104,
+    .LightMagenta = 105,
+    .LightCyan    = 106,
+    .White        = 107
 };
 
 // ---------------------------------------
 
-void ui_one_format(const char* command)
+void ui_one_format(int format)
 {
-    wr_ptr += sprintf(wr_ptr, "\x1b[%sm", command);
+    wr_ptr += sprintf(wr_ptr, "\x1b[%dm", format);
 }
 
-void ui_formats(const char *formats[], size_t size)
+void ui_formats(int formats[], size_t sz)
 {
-    if (size == 0) return;
+    if (sz < 1) return;
 
-    wr_ptr += sprintf(wr_ptr, "\x1b[%s", formats[0]);
+    wr_ptr += snprintf(wr_ptr, BUFFER_SIZE, "\x1b[");
+    const char *sep = "";
 
-    for (size_t i = 1; i < size; ++i) {
-        snprintf(wr_ptr++, 2, ";");
-        wr_ptr += sprintf(wr_ptr, "%s", formats[i]);
+    for (size_t i = 0; i < sz; ++i) {
+        if (i > 0)
+            sep = ";";
+        wr_ptr += snprintf(wr_ptr, BUFFER_SIZE, "%s%d", sep, formats[i]);
     }
 
     wr_ptr += sprintf(wr_ptr, "m");

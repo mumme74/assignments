@@ -6,6 +6,7 @@
 #include "document.h"
 #include "terminal.h"
 #include "utils.h"
+#include "controls.h"
 
 Document* read_doc(const char* filepath)
 {
@@ -25,7 +26,7 @@ Document* read_doc(const char* filepath)
 
     return NULL;
 }
-
+/*
 int start = 0, cur_row = 0;
 void ui_redraw(Document* doc)
 {
@@ -76,11 +77,79 @@ void scroll(int c) {
     default: break;
     }
 }
+*/
+
+
+
+static ui_Window* create_page1(mem_Arena* arena)
+{
+    ui_Window *win = (ui_Window*)mem_arena_alloc(arena, sizeof(ui_Window));
+    if (!win) return NULL;
+
+    ui_window_init(win, arena);
+
+    ui_Wrapper *hdr = ui_window_new_control(win, UI_ContainerType),
+               *menu_btn1 = ui_window_new_control(win, UI_ButtonType),
+               *menu_btn2 = ui_window_new_control(win, UI_ButtonType),
+               *list1 = ui_window_new_control(win, UI_ListType),
+               *text_edit = ui_window_new_control(win, UI_TextEditType),
+               *footer = ui_window_new_control(win, UI_ContainerType),
+               *lbl1  = ui_window_new_control(win, UI_LabelType);
+
+    int rows, cols;
+    ui_get_screen_size(&cols, &rows);
+
+    ui_rect_set(&hdr->rect, 0,0, cols, 2);
+    ui_rect_set(&menu_btn1->rect, 4,1, 10,1);
+    ui_rect_set(&menu_btn2->rect, 11,2, 20,2);
+    ui_rect_set(&list1->rect, 5,5, 30,10);
+    ui_rect_set(&footer->rect, 0,rows, cols,rows);
+    ui_rect_set(&text_edit->rect, 5,12, 20,16);
+    ui_rect_set(&lbl1->rect, 3,rows-1, 20,rows-1);
+    menu_btn1->button->horz_align = HorzAlignCenter;
+    menu_btn2->button->horz_align = HorzAlignRight;
+    text_edit->textedit->vert_align = VertAlignCenter;
+    text_edit->textedit->horz_align = HorzAlignCenter;
+
+    ui_window_append(win, hdr);
+    ui_window_append(win, list1);
+    ui_window_append(win, text_edit);
+    ui_window_append(win, footer);
+    ui_control_append(hdr, menu_btn1);
+    ui_control_append(hdr, menu_btn2);
+    ui_control_append(footer, lbl1);
+
+    String_set(&menu_btn1->button->text, "Help", 4);
+    String_set(&menu_btn2->button->text, "Save", 4);
+    String_set(&text_edit->textedit->text, "Textedit", 8);
+    String_set(&lbl1->label->text, "Bottomlbl", 9);
+
+    return win;
+}
+
+static int page_nr = 0;
+
+ui_Window* ui_repaint(Document* doc, mem_Arena* arena)
+{
+    (void)doc;
+    mem_arena_free(arena);
+    mem_arena_init(arena);
+    if (page_nr == 0)
+        return create_page1(arena);
+
+    return NULL;
+}
+
 
 void run_ui(Document *doc)
 {
     ui_enable_raw_mode();
     ui_set_cursor_show(true);
+
+    mem_Arena arena;
+    mem_arena_init(&arena);
+
+    ui_Window *win = ui_repaint(doc, &arena);
 
     bool contin = true,
          update_ui = true;
@@ -89,14 +158,18 @@ void run_ui(Document *doc)
         int c;
         if (update_ui) {
             update_ui = false;
-            ui_redraw(doc);
+            //ui_redraw(doc);
         }
 
-        if ((c = toupper(ui_listen())) > 0) {
-            scroll(c);
-            update_ui = true;
+        ui_window_render(win);
 
+        if ((c = toupper(ui_listen())) > 0) {
+            //scroll(c);
+            //update_ui = true;
+            // change page here
             switch (c) {
+            case Key_Tab: ui_window_nav_forward(win); break;
+            case 'R': ui_repaint(doc, &arena); break;
             case 'Q': contin = false; break;
             case 'P': printf("print"); fflush(stdout); break;
             default: break;
@@ -104,6 +177,8 @@ void run_ui(Document *doc)
             }
         }
     }
+
+    mem_arena_free(&arena);
 
     ui_disable_raw_mode();
 }
