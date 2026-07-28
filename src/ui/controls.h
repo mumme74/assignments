@@ -12,8 +12,7 @@
 #define COMMON_INTERFACE \
     const char *name;    \
     int bg_color; \
-    struct ui_Wrapper *wrapper; \
-    bool shown;
+    struct ui_Wrapper *wrapper;
 
 #define TEXT_INTERFACE \
     String text;         \
@@ -31,7 +30,7 @@
     bool enabled;
 
 #define CLICKABLE_INTERFACE \
-    ui_EventCb *clicked;
+    ui_EventCb clicked;
 
 #define SCROLLABLE_INTERFACE \
     ui_Point scroll,        \
@@ -41,13 +40,13 @@
     bool activated;
 
 #define EDITABLE_INTERFACE \
-    ui_EventCb *changed;
+    ui_EventCb changed;
 
 
 struct ui_Window;
 struct ui_Wrapper;
 
-typedef void (*ui_EventCb)(struct ui_Wrapper*);
+typedef void (*ui_EventCb)(struct ui_Wrapper* wrap);
 typedef void (*ui_GetListRow)(struct ui_Wrapper* list, String* text, int row);
 
 
@@ -149,8 +148,10 @@ typedef struct ui_Wrapper {
     };
 
     enum ui_ControlType type; ///< The type of Control
+    const char *id; ///< a id for this wrapper
 
     bool dirty; ///< is should re-render
+    bool shown;
 
 } ui_Wrapper;
 
@@ -255,13 +256,22 @@ void ui_window_set_focus(ui_Window* win, ui_Wrapper* wrap);
 /**
  * Gets the active state of currently focused object.
  */
-bool ui_window_get_active_state(ui_Window* win);
+int ui_window_get_active_state(ui_Window* win);
 
 
 /**
  * Sets the active state of currently focused object.
  */
 void ui_window_set_active_state(ui_Window* win, bool active);
+
+/**
+ * Looks up the wrapper with matching id
+ *
+ * @param win The window to look in
+ * @param id The id to look for.
+ * @return null if failed.
+ */
+ui_Wrapper* ui_window_get_id(ui_Window* win, const char* id);
 
 /**
  * Start the UI loop
@@ -319,14 +329,44 @@ void ui_control_set_shown(ui_Wrapper* wrap, bool shown);
 bool ui_control_get_shown(ui_Wrapper* wrap);
 
 /**
+ * Test if wrap is visible in the render tree.
+ * A Parent might have hidden this control
+ */
+bool ui_control_is_visible(ui_Wrapper* wrap);
+
+/**
  * Get text of this control
  */
 const String* ui_control_get_text(ui_Wrapper* wrap);
 
 /**
  * Set text of this control
+ * @param wrap The controle to set text on
+ * @param text The text
+ * @param length LEngth if text or -1 for all text
  */
-bool ui_control_set_text(ui_Wrapper* wrap, const char* text, size_t sz);
+bool ui_control_set_text(ui_Wrapper* wrap, const char* text, int length);
+
+
+/**
+ * Gets the width of the control
+ */
+int ui_control_get_width(ui_Wrapper* wrap);
+
+/**
+ * Gets the height of control
+ */
+int ui_control_get_height(ui_Wrapper* wrap);
+
+/**
+ * Position control, top left
+ */
+void ui_control_set_position(ui_Wrapper* wrap, int x, int y);
+
+/**
+ * Give height and width
+ */
+void ui_control_set_size(ui_Wrapper* wrap, int width, int height);
 
 /**
  * Gets a bounds rectangle of this wrap grown by its childrens sizes

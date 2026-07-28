@@ -10,11 +10,11 @@
 #define INIT_COMMON_INTERFACE(obj, ctl_name, container) \
     (obj)->name = ctl_name;                  \
     (obj)->bg_color = container ? bg_container : bg_default; \
-    (obj)->wrapper = wrap;                   \
-    (obj)->shown = true;
+    (obj)->wrapper = wrap;
 
 #define INIT_TEXT_INTERFACE(obj, arena) \
     String_init(&(obj)->text, arena); \
+    String_set(&(obj)->text, "", 0); \
     (obj)->horz_align = HorzAlignLeft; \
     (obj)->vert_align = VertAlignTop;
 
@@ -78,6 +78,8 @@ static void wrap_append(ui_Wrapper **handle, ui_Wrapper* item)
 {
     ui_Wrapper *itm = *handle, *prev = NULL;
     for (; itm != NULL; itm = itm->next_sibling) {
+        if (itm == item)
+            return;
         handle = &itm->next_sibling;
         prev = itm;
     }
@@ -108,12 +110,16 @@ static void wrap_init(ui_Wrapper* wrap, ui_Window* win, enum ui_ControlType type
     wrap->window = win;
     wrap->type = type;
     wrap->dirty = true;
+    wrap->shown = true;
+    wrap->id = NULL;
 }
 
 /// checks if any child is dirty (need repaint)
 static bool is_dirty(ui_Wrapper *wrap)
 {
     for (; wrap != NULL; wrap = wrap->next_sibling) {
+        if (!wrap->shown)
+            return false;
         if (wrap->dirty)
             return true;
         if (wrap->first_child && is_dirty(wrap->first_child))
@@ -152,6 +158,17 @@ static ui_Wrapper* last_sibling(ui_Wrapper* wrap)
     return tmp;
 }
 
+static ui_Wrapper* lookup_from_id(ui_Wrapper* wrap, const char* id)
+{
+    for (ui_Wrapper* itm = wrap; itm != NULL; itm = itm->next_sibling) {
+        if (itm->id && strcmp(itm->id, id) == 0)
+            return itm;
+        if (itm->first_child)
+            lookup_from_id(itm->first_child, id);
+    }
+    return NULL;
+}
+
 static ui_Wrapper* next_focusable(
     ui_Wrapper* wrap, ui_Wrapper* curobj, bool *after_curobj)
 {
@@ -163,8 +180,8 @@ static ui_Wrapper* next_focusable(
     for (itm = wrap; itm != NULL; itm = itm->next_sibling
     ) {
 
-        if (*after_curobj &&
-            ui_control_can_focus(itm) && ui_control_get_enabled(itm))
+        if (*after_curobj && ui_control_can_focus(itm) &&
+            ui_control_get_enabled(itm) && ui_control_is_visible(itm))
             return itm;
 
         if (itm == curobj)
@@ -191,8 +208,8 @@ static ui_Wrapper* prev_focusable(
     for (; itm != NULL; itm = itm->prev_sibling
     ) {
 
-        if (*after_curobj &&
-            ui_control_can_focus(itm) && ui_control_get_enabled(itm))
+        if (*after_curobj && ui_control_can_focus(itm) &&
+             ui_control_is_visible(itm) && ui_control_get_enabled(itm))
             return itm;
 
         if (itm == curobj)
@@ -387,7 +404,7 @@ static void render_list(ui_List* list, ui_RenderRect* rect, bool has_focus)
  */
 static void keep_visible(int *scroll, int *cursor, int max)
 {
-    if (*cursor >= max) {
+    if (*cursor > max) {
         *scroll += *cursor - max+1;
         *cursor -= *cursor - max+1;
     } else if (*cursor < 0) {
@@ -443,7 +460,7 @@ static void render_textedit(ui_TextEdit* edit, ui_RenderRect* rect, bool has_foc
         edit->wrapper->window->cursor_holder = edit->wrapper;
     }
 
-    for (int r = edit->scroll.y; y < rect->bottom_right.y; y++, r++) {
+    for (int r = edit->scroll.y; y <= rect->bottom_right.y; y++, r++) {
 
         StringSlice sl = String_uft8_slice(&lines->elements[r], edit->scroll.x, width);
         String* row = String_new_from_slice(&sl, &render_arena);
@@ -477,6 +494,9 @@ static void render(ui_Wrapper *wrap, ui_Wrapper* focus_ctl, ui_Point top_left)
         bool has_focus = wrap == focus_ctl;
         wrap->dirty = false;
 
+        if (!ui_control_get_shown(wrap))
+            continue;
+
         switch (wrap->type) {
         case UI_ButtonType:
             render_button(wrap->button, &rect, has_focus);
@@ -496,8 +516,8 @@ static void render(ui_Wrapper *wrap, ui_Wrapper* focus_ctl, ui_Point top_left)
         default: break;
         }
 
-        if (wrap->first_child && ui_control_get_shown(wrap))
-            render(wrap->first_child, focus_ctl, rect.top_left);
+        if (wrap->first_child)
+             render(wrap->first_child, focus_ctl, rect.top_left);
     }
 }
 
@@ -537,15 +557,17 @@ static bool textedit_input(ui_TextEdit* edit, int c)
 
     // find index in string
     const char *p = edit->text.elements,
-               *end = &edit->text.elements[edit->text.size-1]+1;
+               *end = &edit->text.elements[
+                    edit->text.size ? edit->text.size : 0];
     {
         int lines = 0, cols = 0;
-        for (; *p != 0 && p < end && (cols != col || lines != line); ++p) {
+        for (; p < end && *p != 0 &&  (cols != col || lines != line); ++p) {
             if (*p == '\n')
                 lines++;
             else if (lines == line) {
                 if ((*p & 0xC0) == 0xC0) {
-                    for (++p; (*p & 0xC0) == 0x80; ++p) ;
+                    for (++p; p < end && (*p & 0xC0) == 0x80; ++p)
+                        ;
                     --p;
                 }
                 cols++;
@@ -707,7 +729,7 @@ static void move_cursor(ui_Window* win, int x, int y)
 
 static bool handle_input(ui_Window* win, int c)
 {
-    if (!ui_window_get_active_state(win))
+    if (ui_window_get_active_state(win) < 1)
         return false;
 
     switch (win->focus_control->type) {
@@ -773,6 +795,8 @@ ui_Wrapper* ui_window_new_control(ui_Window* win, enum ui_ControlType type)
         INIT_FORMAT_TEXT_INTERFACE(wrap->button)
         INIT_CLICKABLE_INTERFACE(wrap->button)
         INIT_FOCUSABLE_INTERFACE(wrap->button)
+        wrap->button->horz_align = HorzAlignCenter;
+        wrap->button->vert_align = VertAlignCenter;
         break;
     case UI_ContainerType:
         wrap->container = (ui_Container*)mem_arena_alloc(win->arena, sizeof(ui_Container));
@@ -870,6 +894,7 @@ void ui_window_nav_forward(ui_Window* win)
         ui_TabOrder *tab = win->first_tab_order;
         do {
             if (tab->control != *focus_obj &&
+                ui_control_is_visible(tab->control) &&
                 ui_control_get_enabled(tab->control)
             )
                 break;
@@ -903,6 +928,7 @@ void ui_window_nav_backward(ui_Window* win)
         ui_TabOrder *tab = win->first_tab_order;
         do {
             if (tab->control != *focus_obj &&
+                ui_control_is_visible(tab->control) &&
                 ui_control_get_enabled(tab->control)
             )
                 break;
@@ -936,10 +962,10 @@ void ui_window_set_focus(ui_Window* win, ui_Wrapper* wrap)
     }
 }
 
-bool ui_window_get_active_state(ui_Window* win)
+int ui_window_get_active_state(ui_Window* win)
 {
     if (!win->focus_control)
-        return false;
+        return -1;
 
     switch (win->focus_control->type) {
     case UI_TextEditType:
@@ -947,7 +973,7 @@ bool ui_window_get_active_state(ui_Window* win)
     case UI_ListType:
         return win->focus_control->list->activated;
     default:
-        return false;
+        return -1;
     }
 }
 
@@ -969,6 +995,12 @@ void ui_window_set_active_state(ui_Window* win, bool active)
     }
 }
 
+ui_Wrapper* ui_window_get_id(ui_Window* win, const char* id)
+{
+    return lookup_from_id(win->root, id);
+}
+
+
 int ui_window_listen(ui_Window* win)
 {
     mem_arena_init(&render_arena);
@@ -979,13 +1011,13 @@ int ui_window_listen(ui_Window* win)
     if ((c = ui_listen()) > 0) {
         switch (c) {
         case Key_Enter:
-            if (!ui_window_get_active_state(win))
+            if (ui_window_get_active_state(win) == 0)
                 ui_window_set_active_state(win, true);
             else if (!handle_input(win, c))
                 call_click_event(win->focus_control);
             break;
         case Key_Esc:
-            if (ui_window_get_active_state(win))
+            if (ui_window_get_active_state(win) == 1)
                 ui_window_set_active_state(win, false);
             break;
         case Key_Tab:      ui_window_nav_forward(win); break;
@@ -1016,7 +1048,7 @@ void ui_control_append(ui_Wrapper* cont, ui_Wrapper* item)
 {
     item->parent = cont;
     wrap_append(&cont->first_child, item);
-    grow_rect_from_children(cont, &cont->rect);
+    //grow_rect_from_children(cont, &cont->rect);
 }
 
 void ui_control_remove(ui_Wrapper* cont, ui_Wrapper* item)
@@ -1028,11 +1060,11 @@ bool ui_control_can_focus(ui_Wrapper* wrap)
 {
     switch (wrap->type) {
     case UI_ButtonType:
-        return wrap->button->shown && wrap->button->enabled;
+        return wrap->shown && wrap->button->enabled;
     case UI_ListType:
-        return wrap->list->shown && wrap->list->enabled;
+        return wrap->shown && wrap->list->enabled;
     case UI_TextEditType:
-        return wrap->textedit->shown && wrap->textedit->enabled;
+        return wrap->shown && wrap->textedit->enabled;
 
     default: return false;
     }
@@ -1069,41 +1101,23 @@ bool ui_control_get_enabled(ui_Wrapper* wrap)
 
 void ui_control_set_shown(ui_Wrapper* wrap, bool shown)
 {
-    switch (wrap->type) {
-    case UI_ButtonType:
-        wrap->button->shown = shown;
-        break;
-    case UI_ContainerType:
-        wrap->container->shown = shown;
-        break;
-    case UI_LabelType:
-        wrap->label->shown = shown;
-        break;
-    case UI_ListType:
-        wrap->list->shown = shown;
-        break;
-    case UI_TextEditType:
-        wrap->textedit->shown = shown;
-        break;
-    default: return;
-    }
+    wrap->shown = shown;
+    if (shown)
+        wrap->dirty = true;
 }
 
 bool ui_control_get_shown(ui_Wrapper* wrap)
 {
-   switch (wrap->type) {
-    case UI_ButtonType:
-        return wrap->button->shown;
-    case UI_ContainerType:
-        return wrap->container->shown;
-    case UI_LabelType:
-        return wrap->label->shown;
-    case UI_ListType:
-        return wrap->list->shown;
-    case UI_TextEditType:
-        return wrap->textedit->shown;
-    default: return false;
-    }
+    return wrap->shown;
+}
+
+bool ui_control_is_visible(ui_Wrapper* wrap)
+{
+    if (!wrap)
+        return true;
+    if (!wrap->shown)
+        return false;
+    return ui_control_is_visible(wrap->parent);
 }
 
 const String* ui_control_get_text(ui_Wrapper* wrap)
@@ -1119,9 +1133,13 @@ const String* ui_control_get_text(ui_Wrapper* wrap)
     }
 }
 
-bool ui_control_set_text(ui_Wrapper* wrap, const char* text, size_t sz)
+bool ui_control_set_text(ui_Wrapper* wrap, const char* text, int length)
 {
-   switch (wrap->type) {
+    if (!text) return false;
+
+    size_t sz = length > -1 ? (size_t)length : strlen(text);
+
+    switch (wrap->type) {
     case UI_ButtonType:
         wrap->dirty = true;
         return String_set(&wrap->button->text, text, sz);
@@ -1133,6 +1151,32 @@ bool ui_control_set_text(ui_Wrapper* wrap, const char* text, size_t sz)
         return String_set(&wrap->button->text, text, sz);
     default: return false;
     }
+}
+
+int ui_control_get_width(ui_Wrapper* wrap)
+{
+    return wrap->rect.bottom_right.x - wrap->rect.top_left.x;
+}
+
+int ui_control_get_height(ui_Wrapper* wrap)
+{
+    return wrap->rect.bottom_right.y - wrap->rect.top_left.y;
+}
+
+void ui_control_set_position(ui_Wrapper* wrap, int x, int y)
+{
+    wrap->rect.top_left.x += x;
+    wrap->rect.bottom_right.x += x;
+    wrap->rect.top_left.y += y;
+    wrap->rect.bottom_right.y += y;
+}
+
+void ui_control_set_size(ui_Wrapper* wrap, int width, int height)
+{
+    int w = ui_control_get_width(wrap),
+        h = ui_control_get_height(wrap);
+    wrap->rect.bottom_right.x += width - w;
+    wrap->rect.bottom_right.y += height - h -1;
 }
 
 ui_RenderRect ui_control_get_bounds(ui_Wrapper* wrap)

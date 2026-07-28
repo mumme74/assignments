@@ -29,6 +29,6 @@ target_link_libraries(pupil ${SUBDIRS})
 
 # teacher bin
 add_executable(teacher ${teacher_srcs})
-target_link_libraries(teacher memory)
+target_link_libraries(teacher ${SUBDIRS})
 
 
