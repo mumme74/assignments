@@ -339,6 +339,26 @@ void ui_set_cursor_show(bool show)
     show_cursor = show;
 }
 
+void ui_paint_background(int backcolor)
+{
+    update_win_size();
+    frm_reset_buffer();
+
+    ui_one_format(backcolor);
+    frm_top_left();
+
+    for (int i = 0; i < max_rows; ++i) {
+        if (memset(wr_ptr, ' ', max_cols))
+            wr_ptr += max_cols;
+        *wr_ptr = '\n';
+        ++wr_ptr;
+        if (wr_ptr-buffer > BUFFER_SIZE - 1024) {
+            ui_render(false);
+            printf("\x1b[%d;0H", i+1);
+        }
+    }
+}
+
 void ui_clear_screen()
 {
     update_win_size();
@@ -354,13 +374,14 @@ void ui_clear_screen()
     fflush(stdout);
 }
 
-void ui_render()
+void ui_render(bool clear_screen)
 {
     if (show_cursor)
         frm_hide_cursor(false);
 
     // write this frame
-    ui_clear_screen();
+    if (clear_screen)
+        ui_clear_screen();
 
     frm_top_left();
     printf("%s", buffer);
@@ -376,7 +397,7 @@ void ui_render()
 // Restore terminal to normal mode on exit
 void ui_disable_raw_mode() {
     update_win_size();
-    printf("\x1b[%d;%dH\x1b[0m\n", max_rows, max_cols);
+    printf("\x1b[%d;%dH\x1b[0m\x1b[?25h\n", max_rows, max_cols);
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
     restore_screen();
 }

@@ -7,19 +7,6 @@
 
 #include "utils.h"
 
-/**
- * Catches Ctrl+C and exit gracefully by cleaning up.
- *
- * Set up a signal catch in main to catch and close socket.
- *
- * @param sig The signal number that triggered it.
- */
-void sigint_handler(int sig)
-{
-    (void)sig;
-    //close(get_socket());
-    exit(0);
-}
 
 /**
  * Tests if str is a number.

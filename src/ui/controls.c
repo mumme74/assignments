@@ -114,6 +114,7 @@ static void wrap_init(ui_Wrapper* wrap, ui_Window* win, enum ui_ControlType type
     wrap->id = NULL;
 }
 
+/*
 /// checks if any child is dirty (need repaint)
 static bool is_dirty(ui_Wrapper *wrap)
 {
@@ -127,7 +128,7 @@ static bool is_dirty(ui_Wrapper *wrap)
     }
 
     return false;
-}
+}*/
 
 static void grow_rect_from_children(ui_Wrapper* wrap, ui_RenderRect *rect)
 {
@@ -476,8 +477,10 @@ static void render_textedit(ui_TextEdit* edit, ui_RenderRect* rect, bool has_foc
 }
 
 
-static void render(ui_Wrapper *wrap, ui_Wrapper* focus_ctl, ui_Point top_left)
-{
+static void render(
+    ui_Wrapper *wrap, ui_Wrapper* focus_ctl,
+    ui_Point top_left, bool force
+) {
     for (; wrap != NULL; wrap = wrap->next_sibling) {
 
         ui_RenderRect rect = {
@@ -491,50 +494,54 @@ static void render(ui_Wrapper *wrap, ui_Wrapper* focus_ctl, ui_Point top_left)
             }
         };
 
+
+        bool render_me = (wrap->dirty || force) && ui_control_is_visible(wrap);
+
         bool has_focus = wrap == focus_ctl;
         wrap->dirty = false;
 
-        if (!ui_control_get_shown(wrap))
-            continue;
+        if (render_me) {
 
-        switch (wrap->type) {
-        case UI_ButtonType:
-            render_button(wrap->button, &rect, has_focus);
-            break;
-        case UI_ContainerType:
-            render_container(wrap->container, &rect);
-            break;
-        case UI_LabelType:
-            render_label(wrap->label, &rect);
-            break;
-        case UI_ListType:
-            render_list(wrap->list, &rect, has_focus);
-            break;
-        case UI_TextEditType:
-            render_textedit(wrap->textedit, &rect, has_focus);
-            break;
-        default: break;
+            switch (wrap->type) {
+            case UI_ButtonType:
+                render_button(wrap->button, &rect, has_focus);
+                break;
+            case UI_ContainerType:
+                render_container(wrap->container, &rect);
+                break;
+            case UI_LabelType:
+                render_label(wrap->label, &rect);
+                break;
+            case UI_ListType:
+                render_list(wrap->list, &rect, has_focus);
+                break;
+            case UI_TextEditType:
+                render_textedit(wrap->textedit, &rect, has_focus);
+                break;
+            default: break;
+            }
         }
 
         if (wrap->first_child)
-             render(wrap->first_child, focus_ctl, rect.top_left);
+             render(wrap->first_child, focus_ctl,
+                    rect.top_left, force || render_me);
     }
 }
 
 static void window_render(ui_Window* win)
 {
-    if (!win->render_cnt++) {
-        ui_one_format(bg_window);
-        ui_render();
+    if (!win->render_cnt++ || win->force_redraw) {
+        ui_paint_background(bg_window);
+        ui_render(true);
     }
 
-    if (is_dirty(win->root)) {
-        ui_Point pnt = {0};
-        render(win->root, win->focus_control, pnt);
-        ui_set_cursor_show(win->cursor_holder != NULL &&
-                           win->cursor_holder == win->focus_control);
-        ui_render();
-    }
+    ui_Point pnt = {0};
+    render(win->root, win->focus_control, pnt, win->force_redraw);
+    ui_set_cursor_show(win->cursor_holder != NULL &&
+                        win->cursor_holder == win->focus_control);
+    ui_render(false);
+
+    win->force_redraw = false;
 }
 
 
@@ -544,6 +551,11 @@ static bool list_input(ui_List* list, int c)
     case Key_Enter:
         if (list->clicked)
             (*list->clicked)(list->wrapper);
+
+        if (list->select_row_evt) {
+            int row = list->cursor.y - list->scroll.y;
+            (*list->select_row_evt)(list->wrapper, row);
+        }
         return true;
     default:
         return true;
@@ -765,6 +777,7 @@ void ui_window_init(ui_Window* win, mem_Arena* arena)
     win->arena = arena;
     win->render_cnt = 0;
     win->cursor_holder = NULL;
+    win->force_redraw = true;
 
     if (fg_default < 0) fg_default = FrontColors.Blue;
     if (bg_default < 0) bg_default = BackColors.LightGreen;
@@ -820,6 +833,7 @@ ui_Wrapper* ui_window_new_control(ui_Window* win, enum ui_ControlType type)
         INIT_SCROLLABLE_INTERFACE(wrap->list)
         INIT_CLICKABLE_INTERFACE(wrap->list)
         wrap->list->fetch_row = NULL;
+        wrap->list->select_row_evt = NULL;
         break;
     case UI_TextEditType:
         wrap->textedit = (ui_TextEdit*)mem_arena_alloc(win->arena, sizeof(ui_TextEdit));
@@ -956,10 +970,13 @@ void ui_window_nav_backward(ui_Window* win)
 
 void ui_window_set_focus(ui_Window* win, ui_Wrapper* wrap)
 {
-    if (wrap && ui_control_can_focus(wrap)) {
-        win->focus_control = wrap;
-        wrap->dirty = true;
-    }
+    if (!wrap || !ui_control_can_focus(wrap))
+        return;
+
+    if (win->focus_control)
+        win->focus_control->dirty = true;
+    win->focus_control = wrap;
+    wrap->dirty = true;
 }
 
 int ui_window_get_active_state(ui_Window* win)
@@ -1101,9 +1118,11 @@ bool ui_control_get_enabled(ui_Wrapper* wrap)
 
 void ui_control_set_shown(ui_Wrapper* wrap, bool shown)
 {
+    if (!shown && wrap->shown)
+        wrap->window->force_redraw = true;
+
     wrap->shown = shown;
-    if (shown)
-        wrap->dirty = true;
+    wrap->dirty = true;
 }
 
 bool ui_control_get_shown(ui_Wrapper* wrap)
@@ -1151,6 +1170,16 @@ bool ui_control_set_text(ui_Wrapper* wrap, const char* text, int length)
         return String_set(&wrap->button->text, text, sz);
     default: return false;
     }
+}
+
+bool ui_control_get_dirty(ui_Wrapper* wrap)
+{
+    return wrap->dirty;
+}
+
+void ui_control_set_dirty(ui_Wrapper* wrap, bool dirty)
+{
+    wrap->dirty = dirty;
 }
 
 int ui_control_get_width(ui_Wrapper* wrap)

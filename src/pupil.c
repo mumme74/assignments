@@ -168,7 +168,6 @@ void run_ui(Document *doc)
         int c;
         if (update_ui) {
             update_ui = false;
-            //ui_redraw(doc);
         }
 
 

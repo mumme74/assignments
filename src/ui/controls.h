@@ -48,6 +48,7 @@ struct ui_Wrapper;
 
 typedef void (*ui_EventCb)(struct ui_Wrapper* wrap);
 typedef void (*ui_GetListRow)(struct ui_Wrapper* list, String* text, int row);
+typedef void (*ui_RowSelected)(struct ui_Wrapper* list, int row);
 
 
 /**
@@ -127,6 +128,7 @@ typedef struct ui_List {
     FORMAT_TEXT_INTERFACE
     CLICKABLE_INTERFACE
     ui_GetListRow fetch_row;
+    ui_RowSelected select_row_evt;
 } ui_List;
 
 /**
@@ -174,6 +176,7 @@ typedef struct ui_Window {
     mem_Arena *arena;
     size_t render_cnt;
     ui_Wrapper* cursor_holder;
+    bool force_redraw;
 } ui_Window;
 
 
@@ -274,9 +277,14 @@ void ui_window_set_active_state(ui_Window* win, bool active);
 ui_Wrapper* ui_window_get_id(ui_Window* win, const char* id);
 
 /**
+ * Forces a redraw, next frame
+ */
+void ui_window_force_redraw();
+
+/**
  * Start the UI loop
  */
-int ui_window_listen();
+int ui_window_listen(ui_Window* win);
 
 
 // --------------------------------------------------------s
@@ -347,6 +355,15 @@ const String* ui_control_get_text(ui_Wrapper* wrap);
  */
 bool ui_control_set_text(ui_Wrapper* wrap, const char* text, int length);
 
+/**
+ * Get the dirty status of control.\ Dirty meaning need repaint
+ */
+bool ui_control_get_dirty(ui_Wrapper* wrap);
+
+/**
+ * Set the dirty status of control, where dirty means needing repaint
+ */
+void ui_control_set_dirty(ui_Wrapper* wrap, bool dirty);
 
 /**
  * Gets the width of the control

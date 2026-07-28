@@ -132,8 +132,9 @@ void ui_printf(const char* format, ...);
 void ui_nprintf_at_pos(int x, int y, size_t size, const char* format, ...);
 
 
-void ui_render();
+void ui_render(bool clear_screen);
 void ui_clear_screen();
+void ui_paint_background(int backcolor);
 
 int ui_listen();
 
