@@ -274,8 +274,8 @@ static StringArr* lines_from_rect(
 static void draw_lines(StringArr* lines, int x, int y)
 {
     for (size_t i = 0; i < lines->size; i++) {
-        const char *line = lines->elements[i].elements;
-        ui_printf_at_pos(x, y+i, "%s", line);
+        String* line = &lines->elements[i];
+        ui_nprintf_at_pos(x, y+i, line->size, "%s", line->elements);
     }
 }
 
@@ -307,7 +307,7 @@ static void render_container(ui_Container* cont, ui_RenderRect* rect)
 
     ui_one_format(cont->bg_color);
     for (; y <= rect->bottom_right.y; y++) {
-        ui_printf_at_pos(x, y, "%s", row->elements);
+        ui_nprintf_at_pos(x, y, row->size, "%s", row->elements);
     }
 
     ui_one_format(bg_window);
@@ -376,7 +376,7 @@ static void render_list(ui_List* list, ui_RenderRect* rect, bool has_focus)
             }
         }
 
-        ui_printf_at_pos(x, y, "%s", row->elements);
+        ui_nprintf_at_pos(x, y, row->size, "%s", row->elements);
     }
 
     ui_one_format(bg_window);
@@ -393,10 +393,6 @@ static void keep_visible(int *scroll, int *cursor, int max)
     } else if (*cursor < 0) {
         *scroll += *cursor;
         *cursor -= *cursor;
-    } else if (*cursor - *scroll < 0) {
-        *scroll -= *scroll + *cursor;
-    } else if (*cursor - *scroll >=max) {
-        *scroll -= *cursor - *scroll;
     }
     *scroll = MAX(0, *scroll);
 }
@@ -432,11 +428,12 @@ static void render_textedit(ui_TextEdit* edit, ui_RenderRect* rect, bool has_foc
         cur_idx = MIN(cur_idx, lines->size)-1;
     }
 
-    // con't move past line len
+    // can't move past line len
     int line_len = String_utf8_len(&lines->elements[cur_idx]),
         cur_len = edit->scroll.x + edit->cursor.x;
     if (cur_len >= line_len) {
         edit->cursor.x -= cur_len - line_len;
+        keep_visible(&edit->scroll.x, &edit->cursor.x, width);
     }
 
     // scroll
@@ -455,7 +452,7 @@ static void render_textedit(ui_TextEdit* edit, ui_RenderRect* rect, bool has_foc
         if (prnlen < (size_t)width)
             String_pad(row, width - prnlen, ' ');
 
-        ui_printf_at_pos(x, y, "%s", row->elements);
+        ui_nprintf_at_pos(x, y, row->size, "%s", row->elements);
     }
 
     ui_one_format(bg_window);
@@ -546,8 +543,13 @@ static bool textedit_input(ui_TextEdit* edit, int c)
         for (; *p != 0 && p < end && (cols != col || lines != line); ++p) {
             if (*p == '\n')
                 lines++;
-            else if (lines == line)
+            else if (lines == line) {
+                if ((*p & 0xC0) == 0xC0) {
+                    for (++p; (*p & 0xC0) == 0x80; ++p) ;
+                    --p;
+                }
                 cols++;
+            }
         }
     }
     size_t pos = p - edit->text.elements;
@@ -560,7 +562,7 @@ static bool textedit_input(ui_TextEdit* edit, int c)
     case Key_Del: {
         ++p;
         char *prev;
-        size_t idx = pos+1;
+        size_t idx = pos;
         // erase a complete rune
         do {
             if (idx < 1) break;
@@ -569,19 +571,18 @@ static bool textedit_input(ui_TextEdit* edit, int c)
 
         // can back up
         if (prev < p) {
-            StringSlice left = String_slice(&edit->text, 0, MAX(idx-1, 0)),
-                        right = String_slice(&edit->text, pos, -1);
-            String *lStr = String_new_from_slice(&left, &render_arena),
-                   *rStr = String_new_from_slice(&right, &render_arena);
-            String_set(&edit->text, lStr->elements, lStr->size);
+            StringSlice right = String_slice(&edit->text, pos, -1);
+            String *rStr = String_new_from_slice(&right, &render_arena);
+            edit->text.size = idx;
             String_append_str(&edit->text, rStr->elements, rStr->size);
 
             // was it a new line
             if (--edit->cursor.x < 0) {
+                size_t mbcnt = 0;
                 edit->cursor.y = MAX(edit->cursor.y -1, 0);
-                for (p = prev; p >= edit->text.elements && *p != '\n'; --p)
-                    ;
-                edit->cursor.x = prev - p - 2;
+                for (p = prev; p+1 > edit->text.elements && *p != '\n'; --p)
+                    if ((*p & 0xC0) == 0x80) mbcnt++;
+                edit->cursor.x = prev - p - mbcnt - 1;
             }
 
             edit->wrapper->dirty = true;
@@ -613,18 +614,16 @@ static bool textedit_input(ui_TextEdit* edit, int c)
             utf8_rune_len = 0;
             utf8_rune_idx = 0;
             for (size_t i = 4; i < 8; ++i)
-                if ((c & 0x01) != 0)
+                if ((c >> i & 0x01) != 0)
                     utf8_rune_len++;
             buffer[utf8_rune_idx++] = (char)c;
         } else if ((c & 0xC0) == 0x80) {
             buffer[utf8_rune_idx++] = (char)c;
             if (utf8_rune_len == utf8_rune_idx) {
                 // insert rune
-                StringSlice left = String_slice(&edit->text, 0, pos),
-                            right = String_slice(&edit->text, pos, -1);
-                String *lStr = String_new_from_slice(&left, &render_arena),
-                       *rStr = String_new_from_slice(&right, &render_arena);
-                String_set(&edit->text, lStr->elements, lStr->size);
+                StringSlice right = String_slice(&edit->text, pos, -1);
+                String *rStr = String_new_from_slice(&right, &render_arena);
+                edit->text.size = pos;
                 String_append_str(&edit->text, buffer, utf8_rune_idx);
                 String_append_str(&edit->text, rStr->elements, rStr->size);
                 // clear buffer
@@ -703,7 +702,7 @@ static void move_cursor(ui_Window* win, int x, int y)
         offset_y += itm->rect.top_left.y;
     }
 
-    ui_set_cursor_pos(offset_x + cursor->x, offset_y + cursor->y);
+    //ui_set_cursor_pos(offset_x + cursor->x, offset_y + cursor->y);
 }
 
 static bool handle_input(ui_Window* win, int c)
