@@ -249,7 +249,7 @@ NAME_SLICE slice(NAME* arr, size_t start, int32_t len)
         return slice;
 
     if (len < 0)
-        len = arr->size-1;
+        len = arr->size - start;
 
     slice.arr = arr;
     slice.elements = &arr->elements[start];
