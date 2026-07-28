@@ -115,6 +115,12 @@ static int esc_O(int c, char seq[])
     }
 }
 
+static void buffer_prevent_trail_null()
+{
+    for (;*(wr_ptr-1) == '\0' && wr_ptr > buffer; --wr_ptr)
+        ;
+}
+
 static int handle_escape_sequence(int c)
 {
     // escape sequences travel in pairs of up to 4 bytes
@@ -257,17 +263,19 @@ void ui_printf(const char* format, ...)
     va_list args;
     va_start(args, format);
     wr_ptr += vsnprintf(wr_ptr, BUFFER_SIZE, format, args);
+    buffer_prevent_trail_null();
     va_end(args);
 }
 
 
-void ui_printf_at_pos(int x, int y, const char* format, ...)
+void ui_nprintf_at_pos(int x, int y, size_t size, const char* format, ...)
 {
     va_list args;
     va_start(args, format);
 
     ui_frm_set_pos(x, y);
-    wr_ptr += vsnprintf(wr_ptr, BUFFER_SIZE, format, args);
+    wr_ptr += vsnprintf(wr_ptr, MIN(size+1, BUFFER_SIZE), format, args);
+    buffer_prevent_trail_null();
 
     va_end(args);
 }

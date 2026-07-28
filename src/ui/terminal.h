@@ -129,7 +129,7 @@ void ui_unset_scrollable_rows();
 void ui_frm_get_pos(int* x, int* y);
 void ui_frm_set_pos(int x, int y);
 void ui_printf(const char* format, ...);
-void ui_printf_at_pos(int x, int y, const char* format, ...);
+void ui_nprintf_at_pos(int x, int y, size_t size, const char* format, ...);
 
 
 void ui_render();
