@@ -161,11 +161,14 @@ static ui_Wrapper* last_sibling(ui_Wrapper* wrap)
 
 static ui_Wrapper* lookup_from_id(ui_Wrapper* wrap, const char* id)
 {
+    ui_Wrapper* tmp = NULL;
     for (ui_Wrapper* itm = wrap; itm != NULL; itm = itm->next_sibling) {
         if (itm->id && strcmp(itm->id, id) == 0)
             return itm;
-        if (itm->first_child)
-            lookup_from_id(itm->first_child, id);
+        if (itm->first_child &&
+            (tmp = lookup_from_id(itm->first_child, id))
+        )
+            return tmp;
     }
     return NULL;
 }
@@ -553,7 +556,7 @@ static bool list_input(ui_List* list, int c)
             (*list->clicked)(list->wrapper);
 
         if (list->select_row_evt) {
-            int row = list->cursor.y - list->scroll.y;
+            int row = list->cursor.y + list->scroll.y;
             (*list->select_row_evt)(list->wrapper, row);
         }
         return true;
@@ -1164,10 +1167,10 @@ bool ui_control_set_text(ui_Wrapper* wrap, const char* text, int length)
         return String_set(&wrap->button->text, text, sz);
     case UI_LabelType:
         wrap->dirty = true;
-        return String_set(&wrap->button->text, text, sz);
+        return String_set(&wrap->label->text, text, sz);
     case UI_TextEditType:
         wrap->dirty = true;
-        return String_set(&wrap->button->text, text, sz);
+        return String_set(&wrap->textedit->text, text, sz);
     default: return false;
     }
 }
