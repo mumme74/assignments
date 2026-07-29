@@ -7,11 +7,12 @@
 #include "arena.h"
 #include "controls.h"
 #include "document.h"
+#include "person.h"
 #include "utils.h"
 
 
 enum MainPage { FilePage, TestsPage, PersonsPage };
-enum FilePageState { NewFile, OpenFile, SaveFile, ExitFile };
+enum FilePageState { NewFile, OpenFile, SaveFile, ExitFile, SaveFileOk };
 enum TestPageState { AddTest, EditTest, RemoveTest };
 enum PersonPageState { NewPerson, EditPerson, RemovePerson };
 
@@ -27,12 +28,18 @@ static const char submenu_ids[3][20] = {
     "FileSubmenu", "TestSubmenu", "PersonSubmenu"
 };
 
-static void hide_submenu(ui_Wrapper* menu);
-static int submenu_btn_type(ui_Wrapper* btn);
-
-static mem_Arena global_arena;
+static mem_Arena global_arena, doc_arena;
 static StringArr dir_parts, nav_dir;
 static String filename;
+static Document doc;
+static Person cur_user;
+static ui_EventCb dialogOk, dialogCancel;
+
+
+static void hide_submenu(ui_Wrapper* menu);
+static int submenu_btn_type(ui_Wrapper* btn);
+static void clear_dialog(ui_Window* win);
+static void handle_file_submenu(ui_Window* win, enum FilePageState state);
 
 // ------------------------------------------------------
 
@@ -66,6 +73,7 @@ void evt_file_submenu_click(ui_Wrapper* wrap)
     cur_filepage_state = NewFile;
     cur_filepage_state = submenu_btn_type(wrap);
     hide_submenu(wrap->parent);
+    handle_file_submenu(wrap->window, cur_filepage_state);
 }
 
 void evt_test_submenu_click(ui_Wrapper* wrap)
@@ -118,7 +126,7 @@ void evt_go_up_one_dir(ui_Wrapper* wrap)
         list->dirty = true;
 }
 
-void evt_go_down_in_dir(ui_Wrapper* list, int row)
+void evt_file_list_clicked(ui_Wrapper* list, int row)
 {
     (void)list;
     String text;
@@ -136,11 +144,133 @@ void evt_go_down_in_dir(ui_Wrapper* list, int row)
         StringArr_push_back(&nav_dir, text);
 
         list->dirty = true;
+    } else if (text.size) {
+        ui_Wrapper* path = ui_window_get_id(list->window, "FilenameEdit");
+        if (!path)
+            return;
+        ui_control_set_text(path, text.elements, text.size);
     }
 }
 
+void evt_file_ok_overwrite(ui_Wrapper* btnOk)
+{
+    handle_file_submenu(btnOk->window, SaveFileOk);
+}
+
 // ------------------------------------------------------------
+// dialog stuff
+
+void dialog_ok_clicked(ui_Wrapper* btn)
+{
+    clear_dialog(btn->window);
+    if (dialogOk)
+        dialogOk(btn);
+}
+
+void dialog_cancel_clicked(ui_Wrapper* btn)
+{
+    clear_dialog(btn->window);
+    if (dialogCancel)
+        dialogCancel(btn);
+}
+
+static void clear_dialog(ui_Window* win)
+{
+    ui_Wrapper *dlg = ui_window_get_id(win, "Dialog");
+    if (!dlg) return;
+
+    ui_control_set_shown(dlg, false);
+}
+
+static void show_dialog(
+    ui_Window* win, const char* header, const char *message,
+    ui_EventCb okCb, ui_EventCb noCb, bool show_noBtn
+) {
+
+    ui_Wrapper *dlg = ui_window_get_id(win, "Dialog"),
+               *btnNo = ui_window_get_id(win, "BtnNo"),
+               *hdr = ui_window_get_id(win, "DialogHeader"),
+               *lbl   = ui_window_get_id(win, "DialogMessage");
+    if (!dlg) return;
+
+    if (hdr)
+        ui_control_set_text(hdr, header, -1);
+
+    if (lbl)
+        ui_control_set_text(lbl, message, -1);
+
+    ui_control_set_shown(dlg, true);
+
+    dialogOk = okCb;
+    dialogCancel = noCb;
+
+    if (btnNo)
+        ui_control_set_shown(btnNo, show_noBtn);
+}
+
+static void show_ok_cancel_dialog(
+    ui_Window* win, const char* header, const char* message,
+    ui_EventCb evtOk, ui_EventCb evtCancel
+) {
+    show_dialog(win, header, message, evtOk, evtCancel, true);
+}
+
+static void show_info_dialog(
+    ui_Window* win, const char* header, const char* message
+) {
+    show_dialog(win, header, message, NULL, NULL, false);
+}
+
+static void create_dialog(ui_Window* win)
+{
+    ui_Wrapper *cont = ui_window_new_control(win, UI_ContainerType),
+               *header = ui_window_new_control(win, UI_LabelType),
+               *lbl = ui_window_new_control(win, UI_LabelType),
+               *btnNo = ui_window_new_control(win, UI_ButtonType),
+               *btnOk = ui_window_new_control(win, UI_ButtonType);
+
+    ui_window_append(win, cont);
+    ui_control_set_shown(cont, false);
+
+    ui_control_set_text(header, "Default header", -1);
+    ui_control_set_text(btnOk, "OK", -1);
+    ui_control_set_text(btnNo, "Cancel", -1);
+
+    int cols, rows, w = 30, h = 9;
+    ui_get_screen_size(&cols, &rows);
+    ui_control_set_position(cont, cols/2-w/2, rows/2-h/2);
+    ui_control_set_size(cont, w, h);
+    cont->id = "Dialog";
+
+    ui_control_set_size(header, w-2, 1);
+    ui_control_set_position(header, 1,1);
+    header->label->horz_align = HorzAlignCenter;
+    header->id = "DialogHeader";
+    ui_control_append(cont, header);
+
+    ui_control_set_size(lbl, 28,3);
+    ui_control_set_position(lbl, 1,3);
+    lbl->label->horz_align = HorzAlignCenter;
+    lbl->label->vert_align = VertAlignCenter;
+    ui_control_append(cont, lbl);
+    lbl->id = "DialogMessage";
+
+    ui_control_set_size(btnOk, 4,1);
+    ui_control_set_position(btnOk, 4,7);
+    ui_control_append(cont, btnOk);
+    btnOk->id = "BtnOk";
+    btnOk->button->clicked = dialog_ok_clicked;
+
+    ui_control_set_position(btnNo, 18,7);
+    ui_control_set_size(btnNo, 8,1);
+    ui_control_append(cont, btnNo);
+    btnNo->id = "BtnNo";
+    btnNo->button->clicked = dialog_cancel_clicked;
+}
+
+// -------------------------------------------------------------
 // menu stuff
+
 
 static void hide_submenu(ui_Wrapper* menu)
 {
@@ -159,7 +289,7 @@ static void hide_submenus(ui_Window* win)
 static int submenu_btn_type(ui_Wrapper* btn)
 {
     int state = 0;
-    for (ui_Wrapper* itm = btn;
+    for (ui_Wrapper* itm = btn->parent->first_child;
          itm != NULL && itm != btn; itm = itm->next_sibling
     )
          state += 1;
@@ -260,8 +390,85 @@ static void create_submenus(ui_Window* win)
     }
 }
 
+
 // -------------------------------------------------------
 // Page helpers
+
+static void handle_file_submenu(ui_Window* win, enum FilePageState state)
+{
+    ui_Wrapper* fname = ui_window_get_id(win, "FilenameEdit");
+    if (!fname) return;
+
+    String_set_string(&filename, &fname->textedit->text);
+
+    String* path = StringArr_join(&nav_dir, "/", win->arena);
+    String_append_str(path, "/", 1);
+    String_append_string(path, &filename);
+
+    FILE* fp = NULL;
+
+    switch (state) {
+    case NewFile: {
+        mem_arena_free(&doc_arena);
+        mem_arena_init(&doc_arena);
+        Document_init(&doc, &doc_arena);
+        ui_Wrapper* name = ui_window_get_id(win, "FilenameEdit");
+        if (name)
+            ui_control_set_text(name, "unsaved_project", -1);
+
+    }   break;
+    case OpenFile:
+
+        if (!filename.size ||
+            !(fp = fopen(path->elements, "rb"))
+        ) {
+            show_info_dialog(win, "Failed to open file", NULL);
+            return;
+        }
+
+        mem_arena_free(&doc_arena);
+        mem_arena_init(&doc_arena);
+        Document_init(&doc, &doc_arena);
+        if (!Document_read(&doc, fp))
+            show_info_dialog(win, "Failed to read file", read_error());
+
+        fclose(fp);
+
+        break;
+    case SaveFile: {
+        if (!filename.size) {
+            show_info_dialog(win, "No filename specified!", NULL);
+            return;
+        }
+        if (access(path->elements, F_OK) == 0) {
+            clear_warning();
+            write_warning("Should we overwrite?");
+            show_ok_cancel_dialog(win,  "File exist", read_warning(),
+                                  evt_file_ok_overwrite, NULL);
+            clear_warning();
+            return;
+        }
+
+    }  // fallthrough
+    case SaveFileOk: {
+        fp = fopen(path->elements, "wb");
+        if (!fp || !Document_write(&doc, fp, &cur_user)) {
+            show_info_dialog(win, "Failed to write", read_error());
+            clear_error();
+        } else if (read_warning() && read_warning()[0]) {
+            show_info_dialog(win, "Warning", read_warning());
+            clear_warning();
+        }
+
+        fclose(fp);
+    }   break;
+    case ExitFile:
+        exit(EXIT_SUCCESS);
+        break;
+    default:
+        break;
+    }
+}
 
 static void init_current_dirs()
 {
@@ -307,6 +514,7 @@ static void create_file_page(ui_Window* win, Document* doc)
     ui_control_set_size(fname, ui_control_get_width(file_cont)-17, 1);
     ui_control_set_text(fname, cur_file, -1);
     ui_control_append(file_cont, fname);
+    fname->id = "FilenameEdit";
 
     ui_Wrapper* up_btn = ui_window_new_control(win, UI_ButtonType);
     ui_control_set_position(up_btn, 1, 3);
@@ -330,7 +538,7 @@ static void create_file_page(ui_Window* win, Document* doc)
         ui_control_get_height(file_cont)-4);
     ui_control_append(file_cont, dir_list);
     dir_list->list->fetch_row = &list_dir_in_nav_dir;
-    dir_list->list->select_row_evt = &evt_go_down_in_dir;
+    dir_list->list->select_row_evt = &evt_file_list_clicked;
     dir_list->id = "FileList";
 }
 
@@ -375,6 +583,7 @@ static void create_page(ui_Window* win, Document* doc)
     }
 
     create_submenus(win);
+    create_dialog(win);
 }
 
 static void pageloop(Document* doc)
@@ -417,12 +626,14 @@ int main(int argc, const char *argv[])
     (void)argv;
 
     signal(SIGINT, sigint_handler);
+    catch_output(true);
 
     mem_Arena docarena;
     Document doc;
 
     mem_arena_init(&docarena);
     Document_init(&doc, &docarena);
+    Person_init(&cur_user, &global_arena);
 
     init_current_dirs();
 
