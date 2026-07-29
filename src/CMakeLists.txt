@@ -17,7 +17,7 @@ endforeach(subdir ${SUBDIRS})
 
 
 set(pupil_srcs pupil.c)
-set(teacher_srcs teacher.c)
+set(teacher_srcs teacher.c dialog.c)
 
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}..)

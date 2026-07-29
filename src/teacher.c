@@ -9,6 +9,7 @@
 #include "document.h"
 #include "person.h"
 #include "utils.h"
+#include "dialog.h"
 
 
 enum MainPage { FilePage, TestsPage, PersonsPage };
@@ -31,14 +32,12 @@ static const char submenu_ids[3][20] = {
 static mem_Arena global_arena, doc_arena;
 static StringArr dir_parts, nav_dir;
 static String filename;
-static Document doc;
+static Document *doc = NULL;
 static Person cur_user;
-static ui_EventCb dialogOk, dialogCancel;
 
 
 static void hide_submenu(ui_Wrapper* menu);
 static int submenu_btn_type(ui_Wrapper* btn);
-static void clear_dialog(ui_Window* win);
 static void handle_file_submenu(ui_Window* win, enum FilePageState state);
 
 // ------------------------------------------------------
@@ -157,116 +156,6 @@ void evt_file_ok_overwrite(ui_Wrapper* btnOk)
     handle_file_submenu(btnOk->window, SaveFileOk);
 }
 
-// ------------------------------------------------------------
-// dialog stuff
-
-void dialog_ok_clicked(ui_Wrapper* btn)
-{
-    clear_dialog(btn->window);
-    if (dialogOk)
-        dialogOk(btn);
-}
-
-void dialog_cancel_clicked(ui_Wrapper* btn)
-{
-    clear_dialog(btn->window);
-    if (dialogCancel)
-        dialogCancel(btn);
-}
-
-static void clear_dialog(ui_Window* win)
-{
-    ui_Wrapper *dlg = ui_window_get_id(win, "Dialog");
-    if (!dlg) return;
-
-    ui_control_set_shown(dlg, false);
-}
-
-static void show_dialog(
-    ui_Window* win, const char* header, const char *message,
-    ui_EventCb okCb, ui_EventCb noCb, bool show_noBtn
-) {
-
-    ui_Wrapper *dlg = ui_window_get_id(win, "Dialog"),
-               *btnNo = ui_window_get_id(win, "BtnNo"),
-               *hdr = ui_window_get_id(win, "DialogHeader"),
-               *lbl   = ui_window_get_id(win, "DialogMessage");
-    if (!dlg) return;
-
-    if (hdr)
-        ui_control_set_text(hdr, header, -1);
-
-    if (lbl)
-        ui_control_set_text(lbl, message, -1);
-
-    ui_control_set_shown(dlg, true);
-
-    dialogOk = okCb;
-    dialogCancel = noCb;
-
-    if (btnNo)
-        ui_control_set_shown(btnNo, show_noBtn);
-}
-
-static void show_ok_cancel_dialog(
-    ui_Window* win, const char* header, const char* message,
-    ui_EventCb evtOk, ui_EventCb evtCancel
-) {
-    show_dialog(win, header, message, evtOk, evtCancel, true);
-}
-
-static void show_info_dialog(
-    ui_Window* win, const char* header, const char* message
-) {
-    show_dialog(win, header, message, NULL, NULL, false);
-}
-
-static void create_dialog(ui_Window* win)
-{
-    ui_Wrapper *cont = ui_window_new_control(win, UI_ContainerType),
-               *header = ui_window_new_control(win, UI_LabelType),
-               *lbl = ui_window_new_control(win, UI_LabelType),
-               *btnNo = ui_window_new_control(win, UI_ButtonType),
-               *btnOk = ui_window_new_control(win, UI_ButtonType);
-
-    ui_window_append(win, cont);
-    ui_control_set_shown(cont, false);
-
-    ui_control_set_text(header, "Default header", -1);
-    ui_control_set_text(btnOk, "OK", -1);
-    ui_control_set_text(btnNo, "Cancel", -1);
-
-    int cols, rows, w = 30, h = 9;
-    ui_get_screen_size(&cols, &rows);
-    ui_control_set_position(cont, cols/2-w/2, rows/2-h/2);
-    ui_control_set_size(cont, w, h);
-    cont->id = "Dialog";
-
-    ui_control_set_size(header, w-2, 1);
-    ui_control_set_position(header, 1,1);
-    header->label->horz_align = HorzAlignCenter;
-    header->id = "DialogHeader";
-    ui_control_append(cont, header);
-
-    ui_control_set_size(lbl, 28,3);
-    ui_control_set_position(lbl, 1,3);
-    lbl->label->horz_align = HorzAlignCenter;
-    lbl->label->vert_align = VertAlignCenter;
-    ui_control_append(cont, lbl);
-    lbl->id = "DialogMessage";
-
-    ui_control_set_size(btnOk, 4,1);
-    ui_control_set_position(btnOk, 4,7);
-    ui_control_append(cont, btnOk);
-    btnOk->id = "BtnOk";
-    btnOk->button->clicked = dialog_ok_clicked;
-
-    ui_control_set_position(btnNo, 18,7);
-    ui_control_set_size(btnNo, 8,1);
-    ui_control_append(cont, btnNo);
-    btnNo->id = "BtnNo";
-    btnNo->button->clicked = dialog_cancel_clicked;
-}
 
 // -------------------------------------------------------------
 // menu stuff
@@ -296,10 +185,21 @@ static int submenu_btn_type(ui_Wrapper* btn)
     return state;
 }
 
-static void create_menu(ui_Window* win, const char *filename)
+static void update_projectname(ui_Window* win)
+{
+    if (!doc) return;
+
+    ui_Wrapper* prj_name = ui_window_get_id(win, "ProjectName");
+    if (!prj_name) return;
+
+    ui_control_set_text(
+        prj_name, doc->project_name.elements, doc->project_name.size);
+}
+
+static void create_menu(ui_Window* win)
 {
     ui_Wrapper *container = ui_window_new_control(win, UI_ContainerType),
-               *lbl       = ui_window_new_control(win, UI_ContainerType),
+               *lbl       = ui_window_new_control(win, UI_LabelType),
                *menu_btns[] = {
         ui_window_new_control(win, UI_ButtonType),
         ui_window_new_control(win, UI_ButtonType),
@@ -321,18 +221,6 @@ static void create_menu(ui_Window* win, const char *filename)
     ui_rect_set(&lbl->rect, 45,1, 79,1);
     ui_rect_set(&container->rect, 0,0, cols,0);
 
-    String* fn = String_new(win->arena);
-    if (filename)
-        String_set(fn, filename, strlen(filename));
-
-    int slash = String_last_index_of(fn, '/');
-    if (slash > -1) {
-        StringSlice file = String_slice(fn, slash, -1);
-        String_set_from_slice(&lbl->label->text, &file);
-    } else if (filename)
-        String_set(&lbl->label->text, fn->elements, fn->size);
-
-    ui_window_append(win, container);
     for (size_t i = 0; i < sizeof(menu_btns)/sizeof(menu_btns[0]); ++i){
         static const char names[3][8] = {"File", "Tests","Persons"};
         String_set(&menu_btns[i]->button->text, names[i], strlen(names[i]));
@@ -341,7 +229,13 @@ static void create_menu(ui_Window* win, const char *filename)
         ui_control_append(container, menu_btns[i]);
     }
 
+    lbl->label->format = Format.Dim;
+    lbl->id = "ProjectName";
     ui_control_append(container, lbl);
+
+    ui_window_append(win, container);
+
+    update_projectname(win);
 }
 
 static void create_sub_menu(
@@ -394,6 +288,76 @@ static void create_submenus(ui_Window* win)
 // -------------------------------------------------------
 // Page helpers
 
+static void init_doc(ui_Window* win)
+{
+    mem_arena_init(&doc_arena);
+    doc = (Document*)mem_arena_alloc(&doc_arena, sizeof(Document));
+    if (!doc) {
+        if (win)
+            show_info_dialog(win, "Memory failure", "Failed to allocate");
+        else
+            write_error("%s", "Memory failure, crating doc");
+
+        return;
+    }
+
+    Document_init(doc, &doc_arena);
+}
+
+static void new_doc(ui_Window* win)
+{
+    init_doc(win);
+    String_set(&doc->project_name, "Unnamed project", 16);
+    if (win) {
+        update_projectname(win);
+        ui_Wrapper* fname = ui_window_get_id(win, "FilenameEdit");
+        if (fname)
+            ui_control_set_text(fname, "unnamed", -1);
+    }
+}
+
+static void load_doc(ui_Window* win, const char* path)
+{
+    if (!is_file(path)) {
+        show_info_dialog(win, "No file", "Please select the file");
+        return;
+    }
+
+    FILE *fp = fopen(path, "rb");
+
+
+    if (!fp) {
+        show_info_dialog(win, "Failed to open file", NULL);
+        return;
+    }
+
+    init_doc(win);
+
+    if (!Document_read(doc, fp)) {
+        show_info_dialog(win, "Failed to read file", read_error());
+        clear_error();
+        new_doc(win);
+    }
+
+    update_projectname(win);
+
+    fclose(fp);
+}
+
+static void save_doc(ui_Window* win, const char* path)
+{
+    FILE *fp = fopen(path, "wb");
+    if (!fp || !Document_write(doc, fp, &cur_user)) {
+        show_info_dialog(win, "Failed to write", read_error());
+        clear_error();
+    } else if (read_warning() && read_warning()[0]) {
+        show_info_dialog(win, "Warning", read_warning());
+        clear_warning();
+    }
+
+    fclose(fp);
+}
+
 static void handle_file_submenu(ui_Window* win, enum FilePageState state)
 {
     ui_Wrapper* fname = ui_window_get_id(win, "FilenameEdit");
@@ -405,37 +369,14 @@ static void handle_file_submenu(ui_Window* win, enum FilePageState state)
     String_append_str(path, "/", 1);
     String_append_string(path, &filename);
 
-    FILE* fp = NULL;
-
     switch (state) {
-    case NewFile: {
-        mem_arena_free(&doc_arena);
-        mem_arena_init(&doc_arena);
-        Document_init(&doc, &doc_arena);
-        ui_Wrapper* name = ui_window_get_id(win, "FilenameEdit");
-        if (name)
-            ui_control_set_text(name, "unsaved_project", -1);
-
-    }   break;
-    case OpenFile:
-
-        if (!filename.size ||
-            !(fp = fopen(path->elements, "rb"))
-        ) {
-            show_info_dialog(win, "Failed to open file", NULL);
-            return;
-        }
-
-        mem_arena_free(&doc_arena);
-        mem_arena_init(&doc_arena);
-        Document_init(&doc, &doc_arena);
-        if (!Document_read(&doc, fp))
-            show_info_dialog(win, "Failed to read file", read_error());
-
-        fclose(fp);
-
+    case NewFile:
+        new_doc(win);
         break;
-    case SaveFile: {
+    case OpenFile:
+        load_doc(win, path->elements);
+        break;
+    case SaveFile:
         if (!filename.size) {
             show_info_dialog(win, "No filename specified!", NULL);
             return;
@@ -446,22 +387,13 @@ static void handle_file_submenu(ui_Window* win, enum FilePageState state)
             show_ok_cancel_dialog(win,  "File exist", read_warning(),
                                   evt_file_ok_overwrite, NULL);
             clear_warning();
-            return;
-        }
+        } else
+            save_doc(win, path->elements);
 
-    }  // fallthrough
-    case SaveFileOk: {
-        fp = fopen(path->elements, "wb");
-        if (!fp || !Document_write(&doc, fp, &cur_user)) {
-            show_info_dialog(win, "Failed to write", read_error());
-            clear_error();
-        } else if (read_warning() && read_warning()[0]) {
-            show_info_dialog(win, "Warning", read_warning());
-            clear_warning();
-        }
-
-        fclose(fp);
-    }   break;
+        break;
+    case SaveFileOk:
+        save_doc(win, path->elements);
+        break;
     case ExitFile:
         exit(EXIT_SUCCESS);
         break;
@@ -568,7 +500,7 @@ static void create_tests_page(ui_Window* win, Document* doc)
 static void create_page(ui_Window* win, Document* doc)
 {
 
-    create_menu(win, cur_file);
+    create_menu(win);
 
     switch (cur_page) {
     case FilePage:
@@ -586,9 +518,8 @@ static void create_page(ui_Window* win, Document* doc)
     create_dialog(win);
 }
 
-static void pageloop(Document* doc)
+static void pageloop()
 {
-    (void)doc;
     mem_Arena winarena;
     mem_arena_init(&winarena);
 
@@ -609,6 +540,8 @@ static void pageloop(Document* doc)
             }
         }
     }
+
+    mem_arena_free(&winarena);
 }
 
 void sigint_handler(int no)
@@ -618,8 +551,6 @@ void sigint_handler(int no)
     exit(EXIT_FAILURE);
 }
 
-
-
 int main(int argc, const char *argv[])
 {
     (void)argc;
@@ -628,12 +559,9 @@ int main(int argc, const char *argv[])
     signal(SIGINT, sigint_handler);
     catch_output(true);
 
-    mem_Arena docarena;
-    Document doc;
-
-    mem_arena_init(&docarena);
-    Document_init(&doc, &docarena);
+    mem_arena_init(&global_arena);
     Person_init(&cur_user, &global_arena);
+    new_doc(NULL);
 
     init_current_dirs();
 
@@ -643,6 +571,8 @@ int main(int argc, const char *argv[])
         pageloop(&doc);
 
     }
+
+    mem_arena_free(&global_arena);
 
     ui_disable_raw_mode();
 
