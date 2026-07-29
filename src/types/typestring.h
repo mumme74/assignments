@@ -29,6 +29,15 @@ typedef struct StringArr StringArr;
 bool String_set(String* string, const char* text, uint32_t sz);
 
 /**
+ * Set (copy) from another string
+ *
+ * @param des, The string to set
+ * @param src The string that has content
+ * @return false if failed
+ */
+bool String_set_string(String* dest, String* dsrc);
+
+/**
  * Append a C string to end
  *
  * @param dest The string to grow
@@ -37,6 +46,15 @@ bool String_set(String* string, const char* text, uint32_t sz);
  * @return false if failed
  */
 bool String_append_str(String *dest, const char *src, uint32_t sz);
+
+/**
+ * Append a string from another string
+ *
+ * @param des, The string to append to
+ * @param src The string that has content to append
+ * @return false if failed
+ */
+bool String_append_string(String* dest, String* dsrc);
 
 /**
  * Set string from a slice of another

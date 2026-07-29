@@ -33,6 +33,12 @@ bool String_set(String* string, const char* text, uint32_t sz)
     return String_append_str(string, text, sz);
 }
 
+bool String_set_string(String* dest, String* src)
+{
+    String_clear(dest);
+    return String_append_str(dest, src->elements, src->size);
+}
+
 bool String_append_str(
     String *dest, const char *src, uint32_t sz
 ) {
@@ -47,6 +53,11 @@ bool String_append_str(
     dest->elements[dest->size] = '\0';
 
     return true;
+}
+
+bool String_append_string(String* dest, String* src)
+{
+    return String_append_str(dest, src->elements, src->size);
 }
 
 bool String_append_from_slice(String* dest, StringSlice* source)
