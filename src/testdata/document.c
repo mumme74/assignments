@@ -167,6 +167,11 @@ static bool write_header(DocHeader *hdr, FILE* wr_stream)
     return fwrite(byte, 1, HEADER_PADDING, wr_stream) == HEADER_PADDING;
 }
 
+static bool write_projectname(String* project_name, FILE* write_stream)
+{
+    return write_string(project_name, write_stream);
+}
+
 static bool write_persons(PersonArr* persons, FILE* wr_stream)
 {
     if (persons->size > 0xFF) {
@@ -305,8 +310,10 @@ static bool read_person(Person* person, FILE* rd_stream)
     return read_string(&person->email, rd_stream);
 }
 
-static bool read_header(DocHeader* hdr, FILE* rd_stream)
+static bool read_header(Document* doc, FILE* rd_stream)
 {
+    DocHeader* hdr = &doc->header;
+
     if (!read_uint32(&hdr->identifier, rd_stream))
         return false;
 
@@ -342,8 +349,17 @@ static bool read_header(DocHeader* hdr, FILE* rd_stream)
     return true;
 }
 
-static bool read_persons(PersonArr* persons, FILE* rd_stream)
+static bool read_projectname(Document* doc, FILE* rd_stream)
 {
+    if (doc->header.version < 0x02)
+        return false;
+    return read_string(&doc->project_name, rd_stream);
+}
+
+static bool read_persons(Document* doc, FILE* rd_stream)
+{
+    PersonArr* persons = &doc->persons;
+
     uint8_t cnt;
     if (!read_uint8(&cnt, rd_stream))
         return false;
@@ -364,8 +380,10 @@ static bool read_persons(PersonArr* persons, FILE* rd_stream)
     return true;
 }
 
-static bool read_sessions(TestArr* sessions, FILE* rd_stream)
+static bool read_sessions(Document* doc, FILE* rd_stream)
 {
+    TestArr* sessions = &doc->test_sessions;
+
     uint32_t count;
     if (!read_uint32(&count, rd_stream))
         return false;
@@ -398,6 +416,7 @@ void Document_header_init(DocHeader *hdr)
 void Document_init(Document *doc, mem_Arena* arena)
 {
     Document_header_init(&doc->header);
+    String_init(&doc->project_name, arena);
     PersonArr_init(&doc->persons, arena);
     TestArr_init(&doc->test_sessions, arena);
 }
@@ -429,6 +448,8 @@ bool Document_write(Document* doc, FILE* wr_stream, Person* compiler)
 
     do { // bust out block
         if (!write_header(&doc->header, wr_stream))
+            break;
+        if (!write_projectname(&doc->project_name, wr_stream))
             break;
         if (!write_persons(&doc->persons, wr_stream))
             break;
@@ -466,11 +487,13 @@ bool Document_read(Document* doc, FILE* rd_stream)
     (void)read_uint16; // currently unuseed
 
     do {
-        if (!read_header(&doc->header, rd_stream))
+        if (!read_header(doc, rd_stream))
             break;
-        if (!read_persons(&doc->persons, rd_stream))
+        if (!read_projectname(doc, rd_stream))
             break;
-        if (!read_sessions(&doc->test_sessions, rd_stream))
+        if (!read_persons(doc, rd_stream))
+            break;
+        if (!read_sessions(doc, rd_stream))
             break;
         return true;
 

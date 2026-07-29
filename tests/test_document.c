@@ -21,6 +21,12 @@
     buf[2] == (right & 0x0000ff00) >> 8  && \
     buf[3] == (right & 0x000000ff) >> 0
 
+#define checkString(buf, len, str, fp) \
+    expectTrue(check32(buf, len)); \
+    fread(buf, 1, buf[3], fp); \
+    expectEQ((const char*)&buf[4], str)
+
+
 
 // -----------------------------------------------------
 
@@ -40,6 +46,8 @@ static void open_file(const char* modes)
 static void init_fill_doc(Document *doc)
 {
     Document_init(doc, &arena);
+    String_set(&doc->project_name, "TestProject", 11);
+
     Person p1, p2;
     Person_init(&p1, &arena);
     Person_init(&p2, &arena);
@@ -159,7 +167,7 @@ TEST(doc_suite, doc_save, "Should save doc")
     long start = ftell(fileptr);
 
     // identifier / Byteorder mark
-    uint8_t buf[9] = {0};
+    uint8_t buf[100] = {0};
     fread(buf, 1, 4, fileptr);
     expectEQ(buf[0], 0xFA);
     expectEQ(buf[1], 0xCE);
@@ -179,10 +187,32 @@ TEST(doc_suite, doc_save, "Should save doc")
     uint64_t zero = 0;
     expectFalse(check64(buf, zero));
 
-    // person cnt
+    // compiler person
+    fread(buf, 1, 1, fileptr);
+    expectEQ(buf[0], 1);
+
+    // version
+    fread(buf, 1, 1, fileptr);
+    expectEQ(buf[0], DOC_HDR_VERSION);
+
+    // Project name size
     fseek(fileptr, sizeof(DocHeader), SEEK_SET);
+    fread(buf, 1, 4, fileptr);
+    expectTrue(check32(buf, 11));
+
+    // project name
+    fread((char*)&buf[4], 1, 11, fileptr);
+    expectNE((char*)&buf[4], "TestProject");
+    String *name = String_new(&arena),
+           *scrambled = String_new(&arena);
+    String_set(scrambled, (char*)&buf[4], 11);
+    String_unscramble(name, scrambled, DOC_SCRAMBLE);
+
+    // person cnt
+    fseek(fileptr, sizeof(DocHeader) + 4 + buf[3], SEEK_SET);
     fread(buf, 1, 1, fileptr);
     expectEQ(buf[0], 2);
+
 }
 
 
@@ -200,6 +230,8 @@ TEST(doc_suite, doc_read, "Should read doc")
     expectGT(doc->header.date_compiled, now-60);
     expectEQ(doc->header.compiler_person, 1);
     expectEQ(doc->header.version, DOC_HDR_VERSION);
+
+    expectEQ(doc->project_name.elements, "TestProject");
 
     expectEQ(doc->persons.size, 2);
     expectEQ(doc->persons.elements[0].name.elements, "Person1");

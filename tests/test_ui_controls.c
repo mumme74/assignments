@@ -61,7 +61,7 @@ TEST(ctl_suite, win_create_lbl, "Test create label")
     expectNE(ctl->label->fg_color, 0);
     expectEQ(ctl->label->format, 0);
     expectEQ((void*)ctl->label->wrapper, ctl);
-    expectEQ(ctl->label->shown, true);
+    expectEQ(ctl->shown, true);
     expectEQ((void*)ctl->label->text.arena, &arena);
 }
 
@@ -86,7 +86,7 @@ TEST(ctl_suite, win_create_btn, "Test create Button")
     expectNE(ctl->button->fg_color, 0);
     expectEQ(ctl->button->format, 0);
     expectEQ((void*)ctl->button->wrapper, ctl);
-    expectEQ(ctl->button->shown, true);
+    expectEQ(ctl->shown, true);
     expectEQ((void*)ctl->button->text.arena, &arena);
 }
 

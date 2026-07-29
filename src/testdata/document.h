@@ -9,13 +9,15 @@
 
 #define DOC_HDR_IDENTIFIER 0xFACEFEED
 #define DOC_HDR_IDENTIFIER_REVERSE 0xEDFEEFFA
-#define DOC_HDR_VERSION 0x01
+#define DOC_HDR_VERSION 0x02
 
 /*
 
 Structure of doc
 +--------------------------+
 | Header                   |
++--------------------------+
+| Project name             |
 +--------------------------+
 | Persons                  |
 +--------------------------+
@@ -95,6 +97,7 @@ typedef struct DocHeader {
  */
 typedef struct Document {
     DocHeader header;
+    String project_name;
     PersonArr persons;
     TestArr test_sessions;
 } Document;
