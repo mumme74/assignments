@@ -4,6 +4,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 
 #define STR_IMPL(str) #str
@@ -20,7 +21,7 @@
  * @param str The string to test.
  * @return 1 if true, 0 otherwise.
  */
-int isnumber(const char *str);
+bool isnumber(const char *str);
 
 /**
  * Finds the length of strings containing multibyte utf8 chars.
@@ -46,13 +47,24 @@ const char* utf8_pos_length_in(const char* buf, size_t size, size_t utf8pos);
  */
 void catch_output(int catch);
 
-
+/**
+ * Get the stored warnings up till this point
+ */
 const char* read_warning();
 
+/**
+ * Get the stored errors up till this point
+ */
 const char* read_error();
 
+/**
+ * Clear all warnings
+ */
 void clear_warning();
 
+/**
+ * Clear errors
+ */
 void clear_error();
 
 /**
@@ -64,5 +76,15 @@ void write_error(const char* format, ...);
  * A single point to write warnings.
  */
 void write_warning(const char* format, ...);
+
+/**
+ * Check if path exist and is a file
+ */
+bool is_file(const char* path);
+
+/**
+ * Check if path exists and is a dir
+ */
+bool is_dir(const char* path);
 
 #endif // _UTILS_H_

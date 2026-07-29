@@ -5,6 +5,7 @@
 #include <ctype.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <sys/stat.h>
 
 #include "utils.h"
 
@@ -39,14 +40,14 @@ static void ensure_size(char** buf, size_t *sz)
  * @param str The string to test.
  * @return 1 if true, 0 otherwise.
  */
-int isnumber(const char *str)
+bool isnumber(const char *str)
 {
     for (const char *cp = str; *cp != '\0'; ++cp) {
         if (!isspace(*cp) && !isdigit(*cp))
-            return 0;
+            return false;
     }
 
-    return 1;
+    return true;
 }
 
 /**
@@ -147,3 +148,22 @@ void write_warning(const char* format, ...)
 
     va_end(args);
 }
+
+bool is_dir(const char* path)
+{
+    struct stat buf;
+    if (stat(path, &buf) == 0)
+        return false;
+
+    return S_ISDIR(buf.st_mode) != 0;
+}
+
+bool is_file(const char* path)
+{
+    struct stat buf;
+    if (stat(path, &buf) == 0)
+        return false;
+
+    return S_ISDIR(buf.st_mode) == 0;
+}
+
