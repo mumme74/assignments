@@ -28,6 +28,7 @@ mem_arena_Segment* alloc_segment(size_t size) {
 
 void mem_arena_init(mem_Arena *arena)
 {
+    mem_arena_free(arena);
     arena->root = NULL;
 }
 
@@ -98,6 +99,8 @@ void* mem_arena_realloc(
 }
 
 void mem_arena_free(mem_Arena* arena) {
+    if (!arena) return;
+
     for (mem_arena_Segment *seg = arena->root, *next = NULL;
          seg != NULL; seg = next)
     {
@@ -105,4 +108,5 @@ void mem_arena_free(mem_Arena* arena) {
         free(seg->bytes);
         free(seg);
     }
+    arena->root = NULL;
 }

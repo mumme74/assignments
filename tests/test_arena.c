@@ -9,7 +9,7 @@ static mem_Arena *arena = NULL;
 
 TEST_SETUP_FN(arena_suite)
 {
-    arena = (mem_Arena*)malloc(sizeof(mem_Arena));
+    arena = (mem_Arena*)calloc(1, sizeof(mem_Arena));
     mem_arena_init(arena);
 }
 
@@ -21,10 +21,11 @@ TEST_TEARDOWN_FN(arena_suite)
     arena = NULL;
 }
 
-TEST(arena_suite, init, "Should initialize")
+TEST(arena_suite, init, "Should free before init")
 {
-    arena->root = (void*)0x01;
-    expectNE((void*)arena->root, NULL);
+    mem_arena_alloc(arena, 1);
+    void* old = (void*)arena->root;
+    expectNE(old, NULL);
 
     mem_arena_init(arena);
 
