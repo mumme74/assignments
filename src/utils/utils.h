@@ -41,13 +41,28 @@ uint32_t printlen_utf8(const char *str, uint32_t maxlen);
 const char* utf8_pos_length_in(const char* buf, size_t size, size_t utf8pos);
 
 /**
+ * Set catching stdin/stderr output
+ * @param catch If true: catch
+ */
+void catch_output(int catch);
+
+
+const char* read_warning();
+
+const char* read_error();
+
+void clear_warning();
+
+void clear_error();
+
+/**
  * A single point for error messages
  */
-void write_error(const char* errmsg);
+void write_error(const char* format, ...);
 
 /**
  * A single point to write warnings.
  */
-void write_warning(const char* warning);
+void write_warning(const char* format, ...);
 
 #endif // _UTILS_H_
