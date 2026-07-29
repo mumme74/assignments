@@ -6,10 +6,12 @@
 #include  <signal.h>
 #include "arena.h"
 #include "controls.h"
+#include "wrappers_array.h"
 #include "document.h"
 #include "person.h"
 #include "utils.h"
 #include "dialog.h"
+#include "submenus.h"
 
 
 enum MainPage { FilePage, TestsPage, PersonsPage };
@@ -25,9 +27,7 @@ static enum PersonPageState cur_personpage_state = NewPerson;
 static const char *cur_file = NULL; //*cur_dir = NULL;
 static bool contin = true;
 
-static const char submenu_ids[3][20] = {
-    "FileSubmenu", "TestSubmenu", "PersonSubmenu"
-};
+static ui_WrapperArr submenus;
 
 static mem_Arena global_arena, doc_arena;
 static StringArr dir_parts, nav_dir;
@@ -35,58 +35,57 @@ static String filename;
 static Document *doc = NULL;
 static Person cur_user;
 
-
-static void hide_submenu(ui_Wrapper* menu);
-static int submenu_btn_type(ui_Wrapper* btn);
 static void handle_file_submenu(ui_Window* win, enum FilePageState state);
 
 // ------------------------------------------------------
 
 // events
-void evt_main_menu_btn_click(struct ui_Wrapper* wrap)
+void evt_main_menu_btn_click(struct ui_Wrapper* btn)
 {
-    if (wrap->type != UI_ButtonType)
+    if (btn->type != UI_ButtonType)
         return;
 
-    enum MainPage req = (enum MainPage)wrap->button->name;
-    if (req != cur_page) {
-        cur_page = req;
-        wrap->window->force_redraw = true;
+    enum MainPage page = (enum MainPage)btn->data;
+    if (page != cur_page) {
+        cur_page = page;
+        btn->window->force_redraw = true;
         return;
     }
 
+    const char* id = NULL;
+    switch (page) {
+    case FilePage:    id = "FileSubmenu";    break;
+    case TestsPage:   id = "TestsSubmenu";   break;
+    case PersonsPage: id = "PersonsSubmenu"; break;
+    default: return;
+    }
 
-    enum MainPage page = (enum MainPage)wrap->button->name;
-    ui_Wrapper *cont = ui_window_get_id(wrap->window, submenu_ids[page]);
-
-    if (cont) {
-        bool show = !ui_control_get_shown(cont);
-        ui_control_set_shown(cont, show);
+    ui_Wrapper *menu = ui_window_get_id(btn->window, id);
+    if (menu) {
+        bool show = !ui_control_get_shown(menu);
+        ui_control_set_shown(menu, show);
         if (show)
-            ui_window_set_focus(cont->window, cont->first_child);
+            ui_window_set_focus(menu->window, menu->first_child);
     }
 }
 
 void evt_file_submenu_click(ui_Wrapper* wrap)
 {
-    cur_filepage_state = NewFile;
-    cur_filepage_state = submenu_btn_type(wrap);
-    hide_submenu(wrap->parent);
+    cur_filepage_state = submenu_btn_nr(wrap);
+    submenu_set_shown(wrap->parent, false);
     handle_file_submenu(wrap->window, cur_filepage_state);
 }
 
 void evt_test_submenu_click(ui_Wrapper* wrap)
 {
-    cur_testpage_state = AddTest;
-    cur_filepage_state = submenu_btn_type(wrap);
-    hide_submenu(wrap->parent);
+    cur_testpage_state = submenu_btn_nr(wrap);
+    submenu_set_shown(wrap->parent, false);
 }
 
 void evt_person_submenu_click(ui_Wrapper* wrap)
 {
-    cur_personpage_state = NewPerson;
-    cur_filepage_state = submenu_btn_type(wrap);
-    hide_submenu(wrap->parent);
+    cur_personpage_state = submenu_btn_nr(wrap);
+    submenu_set_shown(wrap->parent, false);
 }
 
 void list_dir_in_nav_dir(struct ui_Wrapper* list, String* text, int row)
@@ -160,30 +159,12 @@ void evt_file_ok_overwrite(ui_Wrapper* btnOk)
 // -------------------------------------------------------------
 // menu stuff
 
-
-static void hide_submenu(ui_Wrapper* menu)
+void hide_submenus()
 {
-    ui_control_set_shown(menu, false);
+    for (size_t i = 0; i < submenus.size; ++i)
+        submenu_set_shown(submenus.elements[i], false);
 }
 
-static void hide_submenus(ui_Window* win)
-{
-    for (size_t i = 0; i < sizeof(submenu_ids)/sizeof(submenu_ids[0]); ++i) {
-        ui_Wrapper* menu = ui_window_get_id(win, submenu_ids[i]);
-        if (menu)
-            hide_submenu(menu);
-    }
-}
-
-static int submenu_btn_type(ui_Wrapper* btn)
-{
-    int state = 0;
-    for (ui_Wrapper* itm = btn->parent->first_child;
-         itm != NULL && itm != btn; itm = itm->next_sibling
-    )
-         state += 1;
-    return state;
-}
 
 static void update_projectname(ui_Window* win)
 {
@@ -209,10 +190,9 @@ static void create_menu(ui_Window* win)
     int cols, rows;
     ui_get_screen_size(&cols, &rows);
 
-    menu_btns[0]->button->name = (const char*)FilePage;
-    menu_btns[1]->button->name = (const char*)TestsPage;
-    menu_btns[2]->button->name = (const char*)PersonsPage;
-    menu_btns[cur_page]->button->bg_color = BackColors.LightCyan;
+    menu_btns[0]->data = (void*)FilePage;
+    menu_btns[1]->data = (void*)TestsPage;
+    menu_btns[2]->data = (void*)PersonsPage;
     ui_window_set_focus(win, menu_btns[cur_page]);
 
     ui_rect_set(&menu_btns[0]->rect, 3,1, 12,1);
@@ -226,6 +206,8 @@ static void create_menu(ui_Window* win)
         String_set(&menu_btns[i]->button->text, names[i], strlen(names[i]));
         menu_btns[i]->button->clicked = evt_main_menu_btn_click;
         menu_btns[i]->button->horz_align = HorzAlignCenter;
+        if (i == cur_page)
+            menu_btns[i]->button->format = Format.Underlined;
         ui_control_append(container, menu_btns[i]);
     }
 
@@ -238,52 +220,55 @@ static void create_menu(ui_Window* win)
     update_projectname(win);
 }
 
-static void create_sub_menu(
-    ui_Window* win, const char *strs[], const char* id,
-    size_t str_sz, int xtop, int ytop, int width, ui_EventCb cb
-) {
-    ui_Wrapper* cont = ui_window_new_control(win, UI_ContainerType);
-    ui_window_append(win, cont);
-    ui_control_set_shown(cont, false);
-    cont->id = id;
-
-    for (size_t i = 0; i < str_sz; ++i) {
-        ui_Wrapper* wbtn = ui_window_new_control(win, UI_ButtonType);
-        wbtn->button->clicked = cb;
-        ui_control_set_position(wbtn, xtop, ytop+i);
-        ui_control_set_text(wbtn, strs[i], -1);
-        ui_control_set_size(wbtn, width, 1);
-        ui_control_append(cont, wbtn);
-    }
-}
 
 static void create_submenus(ui_Window* win)
 {
+    mem_Arena tmp_arena;
+    mem_arena_init(&tmp_arena);
+
+    StringArr texts;
+    StringArr_init(&texts, &tmp_arena);
+
+    ui_EventCb clickCb;
+    ui_Wrapper* menu;
+
     switch (cur_page) {
-    case FilePage: {
-        const char *file_submenus[4] = {"New", "Open", "Save", "Exit"};
-        create_sub_menu(win, file_submenus, "FileSubmenu",
-            sizeof(file_submenus)/sizeof(file_submenus[0]),
-            1,2, 10, evt_file_submenu_click);
-    }   break;
-    case TestsPage: {
-        const char *test_submenus[3] = {"Add", "Edit", "Remove"};
-        create_sub_menu(win, test_submenus, "TestSubmenu",
-            sizeof(test_submenus)/sizeof(test_submenus[0]),
-            15,2, 10, evt_test_submenu_click);
-
-    }   break;
-    case PersonsPage: {
-        const char *person_submenus[3] = {"New", "Edit", "Remove"};
-        create_sub_menu(win, person_submenus, "PersonSubmenu",
-            sizeof(person_submenus)/sizeof(person_submenus[0]),
-            25,2, 10, evt_test_submenu_click);
-    }   break;
-    default:
+    case FilePage:
+        clickCb = evt_file_submenu_click;
+        StringArr_append(&texts, "New", -1);
+        StringArr_append(&texts, "Open", -1);
+        StringArr_append(&texts, "Save", -1);
+        StringArr_append(&texts, "Exit", -1);
+        menu = create_sub_menu(win, &texts, 10, clickCb);
+        menu->id = "FileSubmenu";
+        ui_control_set_position(menu, 3, 2);
         break;
+    case TestsPage:
+        clickCb = evt_test_submenu_click;
+        StringArr_append(&texts, "Add", -1);
+        StringArr_append(&texts, "Edit", -1);
+        StringArr_append(&texts, "Remove", -1);
+        menu = create_sub_menu(win, &texts, 10, clickCb);
+        menu->id = "TestsSubmenu";
+        ui_control_set_position(menu, 15, 2);
+        break;
+    case PersonsPage:
+        clickCb = evt_person_submenu_click;
+        StringArr_append(&texts, "New", -1);
+        StringArr_append(&texts, "Edit", -1);
+        StringArr_append(&texts, "Remove", -1);
+        menu = create_sub_menu(win, &texts, 10, clickCb);
+        menu->id = "PersonsSubmenu";
+        ui_control_set_position(menu, 27, 2);
+        break;
+    default:
+        return;
     }
-}
 
+    ui_WrapperArr_push_back(&submenus, menu);
+
+    mem_arena_free(&tmp_arena);
+}
 
 // -------------------------------------------------------
 // Page helpers
@@ -520,11 +505,13 @@ static void create_page(ui_Window* win, Document* doc)
 
 static void pageloop()
 {
-    mem_Arena winarena;
-    mem_arena_init(&winarena);
+    mem_Arena page_arena;
+    mem_arena_init(&page_arena);
 
     ui_Window win;
-    ui_window_init(&win, &winarena);
+    ui_window_init(&win, &page_arena);
+
+    ui_WrapperArr_init(&submenus, &page_arena);
 
     create_page(&win, doc);
     enum MainPage page = cur_page;
@@ -541,7 +528,7 @@ static void pageloop()
         }
     }
 
-    mem_arena_free(&winarena);
+    mem_arena_free(&page_arena);
 }
 
 void sigint_handler(int no)

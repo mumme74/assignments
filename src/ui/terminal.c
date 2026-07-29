@@ -417,7 +417,6 @@ void ui_enable_raw_mode() {
 
 int ui_listen()
 {
-    // based of kilo editor
     int c;
 
     if (read(fileno(stdin), &c, 1) > 0) {

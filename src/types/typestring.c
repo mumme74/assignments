@@ -206,3 +206,16 @@ String* StringArr_join(StringArr* arr, const char *sep, mem_Arena* arena)
 
     return str;
 }
+
+
+
+bool StringArr_append(StringArr* arr, const char* str, int length)
+{
+    String tmp;
+    String_init(&tmp, arr->arena);
+    size_t size = length > -1 ? (size_t) length : strlen(str) - length;
+    if (!String_set(&tmp, str, size))
+        return false;
+
+    return StringArr_push_back(arr, tmp);
+}

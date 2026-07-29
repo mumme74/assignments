@@ -151,6 +151,7 @@ typedef struct ui_Wrapper {
 
     enum ui_ControlType type; ///< The type of Control
     const char *id; ///< a id for this wrapper
+    void* data; ///< pointer to arbitrary data
 
     bool dirty; ///< is should re-render
     bool shown;
@@ -179,6 +180,7 @@ typedef struct ui_Window {
     bool force_redraw;
 } ui_Window;
 
+// ----------------------------------------------------------
 
 /**
  * Sets the size of a rectangle

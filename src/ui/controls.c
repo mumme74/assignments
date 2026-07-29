@@ -2,9 +2,9 @@
 #include <stdlib.h>
 #include "typestring.h"
 #include "arena.h"
-#include "controls.h"
 #include "terminal.h"
 #include "utils.h"
+#include "controls.h"
 
 
 #define INIT_COMMON_INTERFACE(obj, ctl_name, container) \
@@ -42,6 +42,8 @@
 
 #define INIT_EDITABLE_INTERFACE(obj) \
     (obj)->changed = NULL;
+
+// ---------------------------------------------------------------
 
 static mem_Arena render_arena;
 static int fg_default      = -1,
@@ -112,23 +114,8 @@ static void wrap_init(ui_Wrapper* wrap, ui_Window* win, enum ui_ControlType type
     wrap->dirty = true;
     wrap->shown = true;
     wrap->id = NULL;
+    wrap->data = NULL;
 }
-
-/*
-/// checks if any child is dirty (need repaint)
-static bool is_dirty(ui_Wrapper *wrap)
-{
-    for (; wrap != NULL; wrap = wrap->next_sibling) {
-        if (!wrap->shown)
-            return false;
-        if (wrap->dirty)
-            return true;
-        if (wrap->first_child && is_dirty(wrap->first_child))
-            return true;
-    }
-
-    return false;
-}*/
 
 static void grow_rect_from_children(ui_Wrapper* wrap, ui_RenderRect *rect)
 {
@@ -540,6 +527,7 @@ static void window_render(ui_Window* win)
 
     ui_Point pnt = {0};
     render(win->root, win->focus_control, pnt, win->force_redraw);
+    ui_one_format(Format.ResetAll);
     ui_set_cursor_show(win->cursor_holder != NULL &&
                         win->cursor_holder == win->focus_control);
     ui_render(false);

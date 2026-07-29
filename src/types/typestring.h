@@ -144,6 +144,15 @@ bool String_unscramble(String *dest, String *src, uint32_t scramble);
 #endif
 
 /**
+ * Append a single cStr to array
+ * @param arr The String array to operate on
+ * @param str The c str to add
+ * @param length Th lenngth to insert, -1 is at end, -12 end-1 and so on.
+ * @return false if failed
+ */
+bool StringArr_append(StringArr* arr, const char* str, int length);
+
+/**
  * Join a StringArr into a single string with optional sep in between
  *
  * @param arr The StringArr to join

@@ -17,7 +17,7 @@ endforeach(subdir ${SUBDIRS})
 
 
 set(pupil_srcs pupil.c)
-set(teacher_srcs teacher.c dialog.c)
+set(teacher_srcs teacher.c dialog.c submenus.c)
 
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}..)
@@ -28,7 +28,8 @@ target_link_libraries(pupil ${SUBDIRS})
 
 
 # teacher bin
-add_executable(teacher ${teacher_srcs})
+add_executable(teacher ${teacher_srcs}
+    submenus.h)
 target_link_libraries(teacher ${SUBDIRS})
 
 
