@@ -10,6 +10,8 @@
 #define DOC_HDR_IDENTIFIER 0xFACEFEED
 #define DOC_HDR_IDENTIFIER_REVERSE 0xEDFEEFFA
 #define DOC_HDR_VERSION 0x02
+#define DOC_HEADER_PADDING 6
+#define DOC_SCRAMBLE 0x24681357
 
 /*
 
@@ -75,7 +77,7 @@ TestArr
 
 String (spread throughout)
     uint32_t strlen
-    char[*] null terminaed string (scrambled)
+    char[*] null terminated string (scrambled)
 */
 
 

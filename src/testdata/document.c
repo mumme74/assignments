@@ -6,8 +6,6 @@
 #include "document.h"
 #include "utils.h"
 
-#define HEADER_PADDING 6
-#define SCRAMBLE 0x24681357
 
 static uint64_t conv64(uint64_t vlu)
 {
@@ -91,7 +89,7 @@ static bool write_string(String* string, FILE* wr_stream)
 
     String scrambled;
     String_init(&scrambled, &wr_arena);
-    if (!String_scramble(&scrambled, string, SCRAMBLE))
+    if (!String_scramble(&scrambled, string, DOC_SCRAMBLE))
         return false;
 
     if (fwrite(scrambled.elements, 1, string->size, wr_stream) != string->size)
@@ -163,8 +161,8 @@ static bool write_header(DocHeader *hdr, FILE* wr_stream)
         return false;
 
     // padding
-    uint8_t byte[HEADER_PADDING] = {0x5A};
-    return fwrite(byte, 1, HEADER_PADDING, wr_stream) == HEADER_PADDING;
+    uint8_t byte[DOC_HEADER_PADDING] = {0x5A};
+    return fwrite(byte, 1, DOC_HEADER_PADDING, wr_stream) == DOC_HEADER_PADDING;
 }
 
 static bool write_projectname(String* project_name, FILE* write_stream)
@@ -259,7 +257,7 @@ static bool read_string(String* string, FILE* rd_stream)
 
     scrambled.size = size;
 
-    if (!String_unscramble(string, &scrambled, SCRAMBLE))
+    if (!String_unscramble(string, &scrambled, DOC_SCRAMBLE))
         return false;
 
 
@@ -344,7 +342,7 @@ static bool read_header(Document* doc, FILE* rd_stream)
         return false;
 
     // padding
-    fseek(rd_stream, HEADER_PADDING, SEEK_CUR);
+    fseek(rd_stream, DOC_HEADER_PADDING, SEEK_CUR);
 
     return true;
 }
