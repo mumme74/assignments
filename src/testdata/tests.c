@@ -32,7 +32,7 @@ enum TestFlags test_flag_str_to_flag(const char* str)
 {
     if ((strcmp(str, "SilentlyIgnoreFails") == 0))
         return SilentlyIgnoreFails;
-    else if (strcmp(str, "AbortFirstErroe") == 0)
+    else if (strcmp(str, "AbortFirstError") == 0)
         return AbortFirstError;
     else if (strcmp(str, "AbortAfterFiveErrors") == 0)
         return AbortAfterFiveErrors;
@@ -57,10 +57,48 @@ void Test_init(Test *test, mem_Arena* arena)
 StringArr* Test_flags(Test* test, mem_Arena* arena)
 {
     StringArr *arr = StringArr_new(arena);
-    for (size_t i = 0; i < 32; ++i) {
-        if ((test->flags & (0x01 << i)) != 0)
-            StringArr_append(arr, test_flag_to_str(i), -1);
+    for (size_t i = TestFlagUndefined+1; i < 32; ++i) {
+        if ((test->flags & (0x01 << i)) != 0) {
+            const char* str = test_flag_to_str(0x01 << i);
+            if (str)
+                StringArr_append(arr, str, -1);
+        }
     }
 
     return arr;
+}
+
+StringArr* Test_flags_unset(Test* test, mem_Arena* arena)
+{
+    StringArr* arr = StringArr_new(arena);
+    for (size_t i = TestFlagUndefined+1; i < 32; ++i) {
+        if ((test->flags & (0x01 << i)) == 0) {
+            const char* str = test_flag_to_str(0x01 << i);
+            if (str)
+                StringArr_append(arr, str, -1);
+        }
+    }
+
+    return arr;
+}
+
+
+bool Test_check_flag(Test* test, enum TestFlags flag)
+{
+    return test->flags & flag;
+}
+
+bool Test_set_flag(Test* test, enum TestFlags flag)
+{
+    bool was_set = test->flags & flag;
+    test->flags |= flag;
+    return !was_set;
+}
+
+
+bool Test_clear_flag(Test* test, enum TestFlags flag)
+{
+    bool was_set = test->flags & flag;
+    test->flags &= ~flag;
+    return was_set;
 }

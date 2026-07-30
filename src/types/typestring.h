@@ -111,6 +111,17 @@ size_t String_utf8_len(String* string);
  */
 StringSlice String_uft8_slice(String* string, size_t start, uint32_t length);
 
+/**
+ * Sprintf like thing
+ *
+ * @param string The string to insert into
+ * @param sz The maximum size/length to print
+ * @param format The format string, like printf
+ * @param ...   The things need from format string
+ * @return false if failed
+ */
+bool String_printf(String* string, size_t sz, const char* format, ...);
+
 
 /**
  * Scramble a string using scramble

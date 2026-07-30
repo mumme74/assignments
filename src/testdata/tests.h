@@ -62,6 +62,28 @@ void Test_init(Test *test, mem_Arena* arena);
  */
 StringArr* Test_flags(Test* test, mem_Arena* arena);
 
+/**
+ * Returns all the free unselected flags as string array
+ */
+StringArr* Test_flags_unset(Test* test, mem_Arena* arena);
+
+/**
+ * Checks if flag is set
+ */
+bool Test_check_flag(Test* test, enum TestFlags flag);
+
+/**
+ * Sets flag
+ * @return true if it was previously cleared
+ */
+bool Test_set_flag(Test* test, enum TestFlags flag);
+
+/**
+ * Clears a flag
+ * @return true if it was previously set
+ */
+bool Test_clear_flag(Test* test, enum TestFlags flag);
+
 
 
 #endif // _TESTS_H_

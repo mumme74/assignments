@@ -166,10 +166,24 @@ void list_test_row(ui_Wrapper* list, String* text, int row)
     const char* type_name = test_atom_type_to_str(atom->type);
     size_t len = strlen(type_name);
     String_set(text, type_name, MIN(len, max_type));
-    if (max_type - len)
+    if (max_type > len)
         String_pad(text, max_type - len, ' ');
 
     String_append_string(text, &atom->string);
+}
+
+void list_tests(ui_Wrapper* list, String* text, int row)
+{
+    (void)list;
+    if (!doc || row < 0 || row >= (int)doc->test_sessions.size)
+        return;
+
+    Test* test = &doc->test_sessions.elements[row];
+
+    String_printf(text, 68, "%2lu atoms, %.20s &",
+                  test->atoms.size,
+                  test->identifier.elements,
+                  test->command);
 }
 
 
@@ -220,18 +234,10 @@ void list_test_allflags(ui_Wrapper* list, String* text, int row)
     Test* test = get_test(cur_test_idx);
     if (!test || row < 0) return;
 
-    StringArr* taken = Test_flags(test, text->arena);
-    StringArr* free = StringArr_new(text->arena);
+    StringArr* available = Test_flags_unset(test, text->arena);
 
-    for (size_t i = TestFlagUndefined+1; i < _TestFlagsEndMArker; ++i) {
-        String *tmp = String_new(text->arena);
-        String_set(tmp, test_flag_to_str(1), -1);
-        if (StringArr_index_of(taken, *tmp) == -1)
-            StringArr_push_back(free, *tmp);
-    }
-
-    if (row < (int)free->size)
-        String_set_string(text, &free->elements[row]);
+    if (row < (int)available->size)
+        String_set_string(text, &available->elements[row]);
 }
 
 void list_test_types(ui_Wrapper* list, String* text, int row)
@@ -421,6 +427,7 @@ void evt_select_test(ui_Wrapper* list, int row)
     if (!test) return;
 
     cur_test_idx = row;
+    cur_testpage_state = EditTest;
     update_test_page_ui(list->window);
 }
 
@@ -447,7 +454,7 @@ void evt_test_remove_flag(ui_Wrapper* list, int row)
     enum TestFlags flag = test_flag_str_to_flag(tmp->elements);
     if (!flag) return;
 
-    bool has_changed = test->flags & flag;
+    bool has_changed = Test_clear_flag(test, flag);
     if (!has_changed) return;
 
     test->flags &= ~flag;
@@ -465,16 +472,14 @@ void evt_test_add_flag(ui_Wrapper* list, int row)
     if (!test || row < 0) return;
 
     String *tmp = String_new(list->window->arena);
-    list_test_flags(list, tmp, row);
+    list_test_allflags(list, tmp, row);
     if (tmp->size == 0) return;
 
     enum TestFlags flag = test_flag_str_to_flag(tmp->elements);
     if (!flag) return;
 
-    bool has_changed = (test->flags & flag) != 0;
+    bool has_changed = Test_set_flag(test, flag);
     if (!has_changed) return;
-
-    test->flags |= flag;
 
     ui_control_set_dirty(list, true);
 
@@ -706,6 +711,9 @@ static void load_doc(ui_Window* win, const char* path)
     if (doc->persons.size)
         cur_person_idx = doc->header.compiler_person;
 
+    if (doc->test_sessions.size)
+        cur_testpage_state = SelectTest;
+
     if (win)
         update_projectname(win);
 
@@ -846,23 +854,6 @@ static void set_info_msg(ui_Window* win, const char* message)
         ui_control_set_shown(info, shown);
     }
 }
-
-/*
-static void enable_person_form(ui_Window* win, bool enable)
-{
-    static const char names[4][20] = {
-        "PersonNameEdit", "PersonEmailEdit",
-        "PersonRoles", "PersonAllRoles"
-    };
-
-    for (size_t i = 0; i < sizeof(names)/sizeof(names[0]); ++i) {
-        ui_Wrapper* ctl = ui_window_get_id(win, names[i]);
-        if (ctl)
-            ui_control_set_enabled(ctl, enable);
-    }
-
-}
-    */
 
 static void update_person_page_ui(ui_Window *win)
 {
@@ -1035,6 +1026,45 @@ static ui_Wrapper* create_person_form(ui_Window* win)
     return cont;
 }
 
+static ui_Wrapper* create_test_selector(ui_Window* win)
+{
+    ui_Wrapper *cont     = ui_window_new_control(win, UI_ContainerType),
+               *lbl      = ui_window_new_control(win, UI_LabelType),
+               *btn_new  = ui_window_new_control(win, UI_ButtonType),
+               *list     = ui_window_new_control(win, UI_ListType);
+    if (!cont || !lbl || !list || !btn_new)
+        return NULL;
+
+    int rows, cols, w = 70, h = 15;
+    ui_get_screen_size(&cols, &rows);
+
+    int right = MIN(w, cols) - 2,
+        bottom = MAX(h, rows) - 3;
+
+    cont->id = "TestSelector";
+    ui_rect_set(&cont->rect, 2,3, right+2,bottom+2);
+    ui_window_append(win, cont);
+
+    lbl->id = "TestSelectorLbl";
+    ui_control_set_text(lbl, "Select test", 11);
+    ui_rect_set(&lbl->rect, 1,1, 12,1);
+    ui_control_append(cont, lbl);
+
+    btn_new->id = "TestSelectorNew";
+    ui_control_set_text(btn_new, "New", 3);
+    ui_rect_set(&btn_new->rect, right-6,1, right-1,1);
+    ui_control_append(cont, btn_new);
+
+    list->id = "TestSelectorList";
+    list->list->fetch_row = list_tests;
+    list->list->select_row_evt = evt_select_test;
+    ui_rect_set(&list->rect, 1,3, right-1,bottom-1);
+    ui_control_append(cont, list);
+
+    return cont;
+
+}
+
 static ui_Wrapper* create_test_edit(ui_Window* win)
 {
     ui_Wrapper *cont     = ui_window_new_control(win, UI_ContainerType),
@@ -1046,7 +1076,7 @@ static ui_Wrapper* create_test_edit(ui_Window* win)
                *list_type  = ui_window_new_control(win, UI_ListType),
                *btn_new  = ui_window_new_control(win, UI_ButtonType),
                *lbl_flags  = ui_window_new_control(win, UI_LabelType),
-               *list_flags = ui_window_new_control(win, UI_ButtonType),
+               *list_flags = ui_window_new_control(win, UI_ListType),
                *lbl_allflags  = ui_window_new_control(win, UI_LabelType),
                *list_allflags = ui_window_new_control(win, UI_ListType),
                *list     = ui_window_new_control(win, UI_ListType);
@@ -1057,7 +1087,7 @@ static ui_Wrapper* create_test_edit(ui_Window* win)
     )
         return NULL;
 
-    int cols, rows, w = 70, h = 15;
+    int cols, rows, w = 70, h = 17;
     ui_get_screen_size(&cols, &rows);
 
     int right  = MIN(w, cols)-4,
@@ -1178,19 +1208,18 @@ static ui_Wrapper* create_test_edit(ui_Window* win)
     return cont;
  }
 
- static ui_Wrapper* create_info_lbl(ui_Wrapper* cont)
+ static ui_Wrapper* create_info_lbl(ui_Window* win)
  {
-    int x = cont->rect.top_left.x,
-        y = cont->rect.top_left.y - 1;
-    int width = ui_control_get_width(cont);
+    int rows, cols;
+    ui_get_screen_size(&cols, &rows);
 
-    ui_Wrapper* info = ui_window_new_control(cont->window, UI_LabelType);
+    ui_Wrapper* info = ui_window_new_control(win, UI_LabelType);
     info->label->bg_color = BackColors.Cyan;
     info->label->fg_color = FrontColors.Red;
     info->id = "InfoLabel";
-    ui_rect_set(&info->rect, x+1,y, x+width-2,y);
+    ui_rect_set(&info->rect, 1,2, MIN(70, cols-2),2);
     ui_control_set_shown(info, false);
-    ui_window_append(cont->window, info);
+    ui_window_append(win, info);
 
     return info;
  }
@@ -1256,7 +1285,7 @@ static void create_persons_page(ui_Window* win)
     if (edit) ui_window_append(win, edit);
 
     ui_Wrapper* cont = ui_control_get_shown(edit) ? edit : sel;
-    if (cont) create_info_lbl(cont);
+    if (cont) create_info_lbl(cont->window);
 
     update_person_page_ui(win);
 }
@@ -1264,14 +1293,12 @@ static void create_persons_page(ui_Window* win)
 
 static void create_tests_page(ui_Window* win)
 {
-    ui_Wrapper* session = create_test_edit(win);
-    if (session) ui_window_append(win, session);
+    create_test_edit(win),
+    create_atom_edit(win),
+    create_test_selector(win);
 
-    ui_Wrapper* atom = create_atom_edit(win);
 
-    ui_Wrapper* cont = ui_control_get_shown(session)
-                     ? session : atom;
-    if (cont) create_info_lbl(cont);
+    create_info_lbl(win);
 
     update_test_page_ui(win);
 }

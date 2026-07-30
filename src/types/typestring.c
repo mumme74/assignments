@@ -1,5 +1,7 @@
 #include <assert.h>
 #include <string.h>
+#include <stdio.h>
+#include <stdarg.h>
 #include "arena.h"
 #include "utils.h"
 
@@ -146,6 +148,30 @@ StringSlice String_uft8_slice(String* string, size_t start, uint32_t length)
     size_t slice_byte_len = end_pos - st_pos;
 
     return String_slice(string, pos_in_str, slice_byte_len);
+}
+
+bool String_printf(String* string, size_t sz, const char* format, ...)
+{
+
+
+    size_t needed = string->size + sz+1;
+    if (string->capacity < needed &&
+        !String_resize(string, needed+10)
+    ) {
+        return false;
+    }
+
+    *string->elements = 0;
+
+    va_list args;
+    va_start(args, format);
+
+    vsnprintf(string->elements, string->capacity-1, format, args);
+    string->size = strnlen(string->elements, sz);
+
+    va_end(args);
+
+    return true;
 }
 
 bool String_scramble(String *dest, String *src, uint32_t scramble)
