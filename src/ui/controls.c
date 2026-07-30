@@ -1,5 +1,6 @@
 #include <string.h>
 #include <stdlib.h>
+#include <assert.h>
 #include "typestring.h"
 #include "arena.h"
 #include "terminal.h"
@@ -42,6 +43,35 @@
 
 #define INIT_EDITABLE_INTERFACE(obj) \
     (obj)->changed = NULL;
+
+
+#define IMPLEMENTS_TEXT_INTERFACE(obj) \
+    (obj)->type == UI_LabelType ||    \
+    (obj)->type == UI_TextEditType || \
+    (obj)->type == UI_ButtonType
+
+
+#define IMPLEMENTS_FORMAT_TEXT_INTERFACE(obj) \
+    (obj)->type == UI_TextEditType || \
+    (obj)->type == UI_ButtonType || \
+    (obj)->type == UI_LabelType  || \
+    (obj)->type == UI_ListType
+
+#define IMPLEMENTS_FOCUSABLE_INTERFACE(obj) \
+    (obj)->type == UI_ButtonType || \
+    (obj)->type == UI_ListType || \
+    (obj)->type == UI_TextEditType
+
+#define IMPLEMENTS_CLICKABLE_INTERFACE(obj) \
+    (obj)->type == UI_ButtonType || \
+    (obj)->type == UI_ListType
+
+#define IMPLEMENTS_SCROLLABLE_INTERFACE(obj) \
+    (obj)->type == UI_TextEditType ||     \
+    (obj)->type == UI_ListType
+
+#define IMPLEMENTS_EDITABLE_INTERFACE(obj) \
+    (obj)->type == UI_TextEditType
 
 // ---------------------------------------------------------------
 
@@ -335,6 +365,8 @@ static void render_label(ui_Label* lbl, ui_RenderRect* rect)
 
 static void render_list(ui_List* list, ui_RenderRect* rect, bool has_focus)
 {
+    assert(list->wrapper->rect.bottom_right.x >= list->wrapper->rect.top_left.x);
+
     size_t len = rect->bottom_right.x - rect->top_left.x;
 
     int fg_highlight = list->activated ? list->active_fg_color : list->focus_fg_color,
@@ -388,6 +420,8 @@ static void render_list(ui_List* list, ui_RenderRect* rect, bool has_focus)
     }
 
     ui_one_format(bg_window);
+    assert(list->wrapper->rect.bottom_right.x >= list->wrapper->rect.top_left.x);
+
 }
 
 /**
@@ -471,6 +505,9 @@ static void render(
     ui_Wrapper *wrap, ui_Wrapper* focus_ctl,
     ui_Point top_left, bool force
 ) {
+
+    assert(wrap->rect.bottom_right.x >= wrap->rect.top_left.x);
+
     for (; wrap != NULL; wrap = wrap->next_sibling) {
 
         ui_RenderRect rect = {
@@ -484,6 +521,8 @@ static void render(
             }
         };
 
+        assert(rect.bottom_right.x >= rect.top_left.x);
+
 
         bool render_me = (wrap->dirty || force) && ui_control_is_visible(wrap);
 
@@ -491,6 +530,7 @@ static void render(
         wrap->dirty = false;
 
         if (render_me) {
+            ui_one_format(Format.ResetAll);
 
             switch (wrap->type) {
             case UI_ButtonType:
@@ -527,7 +567,6 @@ static void window_render(ui_Window* win)
 
     ui_Point pnt = {0};
     render(win->root, win->focus_control, pnt, win->force_redraw);
-    ui_one_format(Format.ResetAll);
     ui_set_cursor_show(win->cursor_holder != NULL &&
                         win->cursor_holder == win->focus_control);
     ui_render(false);
@@ -612,11 +651,11 @@ static bool textedit_input(ui_TextEdit* edit, int c)
 
             edit->wrapper->dirty = true;
         }
-    }   return true;
+    }   break;
     case Key_Home:
         edit->cursor.x = edit->scroll.x = 0;
         edit->wrapper->dirty = true;
-        return true;
+        break;
     case Key_End: {
         StringArr* lines = String_split(&edit->text, "\n", &render_arena);
         size_t printlen = String_utf8_len(&lines->elements[line]),
@@ -628,7 +667,7 @@ static bool textedit_input(ui_TextEdit* edit, int c)
         }
 
         edit->wrapper->dirty = true;
-    }   return true;
+    }   break;
     case '\n':
         edit->cursor.x = -1;
         edit->cursor.y++;
@@ -663,8 +702,13 @@ static bool textedit_input(ui_TextEdit* edit, int c)
             edit->cursor.x++;
             edit->wrapper->dirty = true;
         }
-        return true;
+        break;
     }
+
+    if (edit->changed)
+        edit->changed(edit->wrapper);
+
+    return true;
 }
 
 
@@ -852,6 +896,9 @@ void ui_window_insert(ui_Window* win, ui_Wrapper* item, int idx)
 
 void ui_window_append(ui_Window* win, ui_Wrapper* item)
 {
+    assert(item->rect.top_left.x <= item->rect.bottom_right.x);
+    assert(item->rect.top_left.y <= item->rect.bottom_right.y);
+
     wrap_append(&win->root, item);
 }
 
@@ -964,8 +1011,10 @@ void ui_window_set_focus(ui_Window* win, ui_Wrapper* wrap)
     if (!wrap || !ui_control_can_focus(wrap))
         return;
 
-    if (win->focus_control)
+    if (win->focus_control) {
         win->focus_control->dirty = true;
+        ui_control_set_active(win->focus_control, false);
+    }
     win->focus_control = wrap;
     wrap->dirty = true;
 }
@@ -1054,6 +1103,9 @@ void ui_control_insert(ui_Wrapper* cont, ui_Wrapper* item, int idx)
 
 void ui_control_append(ui_Wrapper* cont, ui_Wrapper* item)
 {
+    assert(item->rect.top_left.x <= item->rect.bottom_right.x);
+    assert(item->rect.top_left.y <= item->rect.bottom_right.y);
+
     item->parent = cont;
     wrap_append(&cont->first_child, item);
     //grow_rect_from_children(cont, &cont->rect);
@@ -1130,9 +1182,35 @@ bool ui_control_is_visible(ui_Wrapper* wrap)
     return ui_control_is_visible(wrap->parent);
 }
 
+void ui_control_set_active(ui_Wrapper* wrap, bool active)
+{
+    switch (wrap->type) {
+    case UI_TextEditType:
+        wrap->textedit->activated = active;
+        wrap->dirty = true;
+        break;
+    case UI_ListType:
+        wrap->list->activated = active;
+        wrap->dirty = true;
+        break;
+    default: break;
+    }
+}
+
+bool ui_control_get_active(ui_Wrapper* wrap)
+{
+    switch (wrap->type) {
+    case UI_TextEditType:
+        return wrap->textedit->activated;
+    case UI_ListType:
+        return wrap->textedit->activated;
+    default: return false;
+    }
+}
+
 const String* ui_control_get_text(ui_Wrapper* wrap)
 {
-   switch (wrap->type) {
+    switch (wrap->type) {
     case UI_ButtonType:
         return &wrap->button->text;
     case UI_LabelType:

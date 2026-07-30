@@ -345,6 +345,16 @@ bool ui_control_get_shown(ui_Wrapper* wrap);
 bool ui_control_is_visible(ui_Wrapper* wrap);
 
 /**
+ * Set the active state for those controls that allow it.
+ */
+void ui_control_set_active(ui_Wrapper* wrap, bool active);
+
+/**
+ * Get active state for those controls that implements it
+ */
+bool ui_control_get_active(ui_Wrapper* wrap);
+
+/**
  * Get text of this control
  */
 const String* ui_control_get_text(ui_Wrapper* wrap);
