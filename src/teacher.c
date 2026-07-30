@@ -3,7 +3,8 @@
 #include <unistd.h>
 #include <errno.h>
 #include <dirent.h>
-#include  <signal.h>
+#include <signal.h>
+#include <assert.h>
 #include "arena.h"
 #include "controls.h"
 #include "wrappers_array.h"
@@ -39,6 +40,7 @@ static int cur_person_idx  = -1,
            cur_atom_idx    = -1;
 
 static void handle_file_submenu(ui_Window* win, enum FilePageState state);
+static void handle_testpage_submenu(ui_Wrapper* wrap, enum TestPageState state);
 static Person* get_person(int idx);
 static TestAtom* get_atom(int idx);
 static Test* get_test(int idx);
@@ -46,6 +48,8 @@ static void update_person_page_ui(ui_Window *win);
 static void update_test_page_ui(ui_Window* win);
 static void remove_current_person(ui_Window* win);
 static void add_new_person(ui_Window* win);
+static void add_new_test(ui_Window* win);
+static void add_new_atom(ui_Window* win);
 
 // ------------------------------------------------------
 
@@ -88,8 +92,10 @@ void evt_file_submenu_click(ui_Wrapper* wrap)
 
 void evt_test_submenu_click(ui_Wrapper* wrap)
 {
-    cur_testpage_state = submenu_btn_nr(wrap);
     submenu_set_shown(wrap->parent, false);
+    if (!doc) return;
+
+    handle_testpage_submenu(wrap, submenu_btn_nr(wrap));
 }
 
 void evt_person_submenu_click(ui_Wrapper* wrap)
@@ -240,33 +246,31 @@ void list_test_allflags(ui_Wrapper* list, String* text, int row)
         String_set_string(text, &available->elements[row]);
 }
 
-void list_test_types(ui_Wrapper* list, String* text, int row)
+void list_atom_type(ui_Wrapper* list, String* text, int row)
 {
     (void)list;
     Test* test = get_test(cur_test_idx);
-    if (!test || row < 0 || row >= (int)test->atoms.size)
+    if (!test || row < 0 || row > 0)
         return;
 
-    StringArr* types = TestAtom_types(&test->atoms.elements[row], text->arena);
-    String_set_string(text, &types->elements[row]);
+    TestAtom* atom = &test->atoms.elements[cur_atom_idx];
+
+    const char* type = test_atom_type_to_str(atom->type);
+    if (type)
+        String_set(text, type, strlen(type));
 }
 
-void evt_person_name_changed(ui_Wrapper* edit)
+void list_atom_alltypes(ui_Wrapper* list, String* text, int row)
 {
-    Person* person = get_person(cur_person_idx);
-    if (!person) return;
+    (void)list;
+    Test* test = get_test(cur_test_idx);
+    if (!test || row < 0 || row >= _TestFlagsEndMarker)
+        return;
 
-    String_set_string(&person->name, &edit->textedit->text);
-    //ui_control_set_dirty(edit, true);
-}
-
-void evt_person_email_changed(ui_Wrapper* edit)
-{
-    Person* person = get_person(cur_person_idx);
-    if (!person) return;
-
-    String_set_string(&person->email, &edit->textedit->text);
-    //ui_control_set_dirty(edit, true);
+    TestAtom* atom = &test->atoms.elements[cur_atom_idx];
+    StringArr* types = TestAtom_types_unset(atom, text->arena);
+    if ((int)types->size > row)
+        String_set_string(text, &types->elements[row]);
 }
 
 void evt_person_roles_add(ui_Wrapper* list, int row)
@@ -400,6 +404,16 @@ void evt_test_new_atom(ui_Wrapper* btn)
     update_test_page_ui(btn->window);
 }
 
+void evt_add_test(ui_Wrapper* wrap)
+{
+    add_new_test(wrap->window);
+}
+
+void evt_add_atom(ui_Wrapper* wrap)
+{
+    add_new_atom(wrap->window);
+}
+
 void evt_remove_test(ui_Wrapper* wrap)
 {
     Test* test = get_test(cur_test_idx);
@@ -489,26 +503,57 @@ void evt_test_add_flag(ui_Wrapper* list, int row)
 
 }
 
-void evt_show_type_list(ui_Wrapper* wrap)
+void evt_atom_type_selected(ui_Wrapper* list, int row)
 {
-    ui_Wrapper* list = ui_window_get_id(wrap->window, "TestTypeList");
-    if (!list) return;
+    TestAtom* atom = get_atom(cur_atom_idx);
+    if (!atom || row < 0 || row >= _TestAtomType_EndMarker)
+        return;
 
-    ui_control_set_shown(list, true);
+    // prevent loop
+    StringArr* types = TestAtom_types_unset(atom, list->window->arena);
+    if ((int)types->size <= row) return;
+
+    enum TestAtomType type = test_atom_str_type(types->elements[row].elements);
+
+    bool has_changed = atom->type != type;
+    if (!has_changed) return;
+
+    atom->type = type;
+    ui_control_set_dirty(list, true);
+
+    list = ui_window_get_id(list->window, "TestAtomTypeList");
+    if (list)
+        ui_control_set_dirty(list, true);
 }
 
-void evt_test_type_selected(ui_Wrapper* list, int row)
+void evt_atom_type_removed(ui_Wrapper* list, int row)
 {
-    ui_control_set_shown(list, false);
     TestAtom* atom = get_atom(cur_atom_idx);
-    if (!atom) return;
+    if (!atom || row < 0 || row >= _TestAtomType_EndMarker)
+        return;
+
+    // prevent loop
+    bool has_changed = (int)atom->type != row;
+    if (!has_changed) return;
 
     atom->type = row;
+    ui_control_set_dirty(list, true);
 
-    ui_Wrapper *btn = ui_window_get_id(list->window, "TestAtomTypeBtn");
-    if (!btn) return;
+    list = ui_window_get_id(list->window, "TestAtomTypeallList");
+    if (list)
+        ui_control_set_dirty(list, true);
+}
 
-    ui_control_set_text(btn, test_atom_type_to_str(atom->type), -1);
+void evt_atom_back(ui_Wrapper* wrap)
+{
+    cur_testpage_state = EditTest;
+    update_test_page_ui(wrap->window);
+}
+
+void evt_test_back(ui_Wrapper* wrap)
+{
+    cur_testpage_state = SelectTest;
+    update_test_page_ui(wrap->window);
 }
 
 
@@ -708,11 +753,12 @@ static void load_doc(ui_Window* win, const char* path)
         new_doc(win);
     }
 
-    if (doc->persons.size)
-        cur_person_idx = doc->header.compiler_person;
+    cur_person_idx = doc->persons.size ? doc->header.compiler_person : -1;
 
     if (doc->test_sessions.size)
         cur_testpage_state = SelectTest;
+
+    cur_atom_idx = cur_test_idx = -1;
 
     if (win)
         update_projectname(win);
@@ -782,6 +828,57 @@ static void handle_file_submenu(ui_Window* win, enum FilePageState state)
     }
 }
 
+static void handle_testpage_submenu(ui_Wrapper* wrap, enum TestPageState state)
+{
+    switch (state) {
+     case AddTest:
+        switch (cur_testpage_state) {
+        case EditAtom: case AddAtom:
+            add_new_atom(wrap->window);
+            break;
+         case SelectTest:
+            cur_testpage_state = EditTest;
+            // fallthrough
+        case EditTest: case AddTest:
+            add_new_test(wrap->window);
+            update_test_page_ui(wrap->window);
+            break;
+        default: break;
+        }
+
+        break;
+    case EditTest:
+        switch (cur_testpage_state) {
+        case SelectTest:
+            if (!doc->test_sessions.size)
+                add_new_test(wrap->window);
+            else {
+                cur_test_idx = doc->test_sessions.size-1;
+                update_test_page_ui(wrap->window);
+            }
+            break;
+        default: break;
+        }
+        break;
+
+    case RemoveTest:
+        switch (cur_testpage_state) {
+        case EditAtom: case AddAtom:
+            show_ok_cancel_dialog(wrap->window,
+                "Remove TestAtom?", "Are you sure?",  evt_remove_atom, NULL);
+            break;
+        case EditTest: case AddTest:
+            show_ok_cancel_dialog(wrap->window,
+                "Remove Test?", "Are you sure?",  evt_remove_test, NULL);
+            break;
+
+        default: break;
+        }
+
+    default: break;
+    }
+}
+
 static void init_current_dirs()
 {
     char buf[4096] = {0};
@@ -810,6 +907,34 @@ static void add_new_person(ui_Window* win)
     cur_personpage_state = NewPerson;
 }
 
+static void add_new_test(ui_Window* win)
+{
+    Test new_test;
+    Test_init(&new_test, doc->test_sessions.arena);
+    cur_test_idx = doc->test_sessions.size;
+    if (!TestArr_push_back(&doc->test_sessions, new_test))
+        show_info_dialog(win, "Mem error", "Failed to add new test");
+
+    cur_testpage_state = AddTest;
+    update_test_page_ui(win);
+}
+
+static void add_new_atom(ui_Window* win)
+{
+    TestAtom new_atom;
+    TestAtom_init(&new_atom, doc->test_sessions.arena);
+    if (cur_test_idx < 0)
+        add_new_test(win);
+    cur_atom_idx = doc->test_sessions.elements[cur_test_idx].atoms.size;
+    if (!TestAtomArr_push_back(
+            &doc->test_sessions.elements[cur_test_idx].atoms, new_atom)
+    )
+        show_info_dialog(win, "Mem error", "Failed to add new test atom");
+
+    cur_testpage_state = AddAtom;
+    update_test_page_ui(win);
+}
+
 static void remove_current_person(ui_Window* win)
 {
     Person* person = get_person(cur_person_idx);
@@ -820,7 +945,7 @@ static void remove_current_person(ui_Window* win)
          evt_remove_person, NULL);
 }
 
-static void set_person_form(ui_Window* win)
+static void link_person_form(ui_Window* win)
 {
     ui_Wrapper *form = ui_window_get_id(win, "PersonEditForm"),
                *name = ui_window_get_id(win, "PersonNameEdit"),
@@ -834,8 +959,43 @@ static void set_person_form(ui_Window* win)
 
     Person *user = &doc->persons.elements[cur_person_idx];
 
-    String_set_string(&name->textedit->text, &user->name);
-    String_set_string(&email->textedit->text, &user->email);
+    name->textedit->reftxt = &user->name;
+    email->textedit->reftxt = &user->email;
+}
+
+static void link_test_edit_form(ui_Window* win)
+{
+    ui_Wrapper *name = ui_window_get_id(win, "TestNameEdit"),
+               *cmd = ui_window_get_id(win, "TestCmdEdit");
+
+    if (!doc || !name || !cmd)
+        return;
+
+    if (cur_test_idx < 0)
+        add_new_test(win);
+
+    Test *test = get_test(cur_test_idx);
+
+    assert(test != NULL);
+
+    name->textedit->reftxt = &test->identifier;
+    cmd->textedit->reftxt = &test->command;
+}
+
+static void link_atom_edit_form(ui_Window* win)
+{
+    ui_Wrapper *atomstr = ui_window_get_id(win, "TestAtomStrEdit");
+
+    if (!doc || !atomstr)
+        return;
+
+    if (cur_atom_idx < 0)
+        add_new_atom(win);
+
+    TestAtom *atom = get_atom(cur_atom_idx);
+    assert(atom != NULL);
+
+    atomstr->textedit->reftxt = &atom->string;
 }
 
 static void set_enable_form(ui_Wrapper* form, bool enable)
@@ -875,7 +1035,7 @@ static void update_person_page_ui(ui_Window *win)
         ui_control_set_shown(select, false);
         ui_control_set_shown(form, true);
         set_enable_form(form, enable);
-        set_person_form(win);
+        link_person_form(win);
         break;
     case RemovePerson:
     case SelectPerson:
@@ -911,12 +1071,14 @@ static void update_test_page_ui(ui_Window* win)
     case RemoveAtom:
     case EditTest:
         shown_id = ids[1];
+        link_test_edit_form(win);
         break;
     case AddAtom:
         enable = false;
         // fallthrough
     case EditAtom:
         shown_id = ids[2];
+        link_atom_edit_form(win);
         break;
     default:
         return;
@@ -998,7 +1160,6 @@ static ui_Wrapper* create_person_form(ui_Window* win)
     ui_control_append(cont, lbl_name);
 
     name->id = "PersonNameEdit";
-    name->textedit->changed = evt_person_name_changed;
     ui_rect_set(&name->rect, 7,1, width-3,1);
     ui_control_append(cont, name);
 
@@ -1007,7 +1168,6 @@ static ui_Wrapper* create_person_form(ui_Window* win)
     ui_control_append(cont, lbl_email);
 
     email->id = "PersonEmailEdit";
-    email->textedit->changed = evt_person_email_changed;
     ui_rect_set(&email->rect, 7,3, width-3,3);
     ui_control_append(cont, email);
 
@@ -1051,6 +1211,7 @@ static ui_Wrapper* create_test_selector(ui_Window* win)
     ui_control_append(cont, lbl);
 
     btn_new->id = "TestSelectorNew";
+    btn_new->button->clicked = evt_add_test;
     ui_control_set_text(btn_new, "New", 3);
     ui_rect_set(&btn_new->rect, right-6,1, right-1,1);
     ui_control_append(cont, btn_new);
@@ -1069,11 +1230,10 @@ static ui_Wrapper* create_test_edit(ui_Window* win)
 {
     ui_Wrapper *cont     = ui_window_new_control(win, UI_ContainerType),
                *lbl_name = ui_window_new_control(win, UI_LabelType),
+               *btn_back = ui_window_new_control(win, UI_ButtonType),
                *name     = ui_window_new_control(win, UI_TextEditType),
                *lbl_cmd  = ui_window_new_control(win, UI_LabelType),
                *cmd      = ui_window_new_control(win, UI_TextEditType),
-               *btn_type = ui_window_new_control(win, UI_ButtonType),
-               *list_type  = ui_window_new_control(win, UI_ListType),
                *btn_new  = ui_window_new_control(win, UI_ButtonType),
                *lbl_flags  = ui_window_new_control(win, UI_LabelType),
                *list_flags = ui_window_new_control(win, UI_ListType),
@@ -1081,9 +1241,9 @@ static ui_Wrapper* create_test_edit(ui_Window* win)
                *list_allflags = ui_window_new_control(win, UI_ListType),
                *list     = ui_window_new_control(win, UI_ListType);
 
-    if (!cont || !lbl_name || !name || !lbl_cmd || !cmd || !btn_type ||
-        !btn_type || !lbl_flags || !list_flags || !lbl_allflags ||
-        !list_allflags || !list
+    if (!cont || !lbl_name || !name || !lbl_cmd || !cmd ||
+        !lbl_flags || !list_flags || !lbl_allflags ||
+        !list_allflags || !list || !btn_back
     )
         return NULL;
 
@@ -1097,31 +1257,32 @@ static ui_Wrapper* create_test_edit(ui_Window* win)
     ui_rect_set(&cont->rect, 2,3, right+2,bottom+2);
     ui_window_append(win, cont);
 
+    btn_back->id = "TestEditBackBtn";
+    btn_back->button->clicked = evt_test_back;
+    ui_rect_set(&btn_back->rect, 1,0, 7,0);
+    ui_control_set_text(btn_back, "< Back", 6);
+    ui_control_append(cont, btn_back);
+
     lbl_name->id = "TestNameLbl";
     ui_control_set_text(lbl_name, "Testsession name", 16);
-    ui_rect_set(&lbl_name->rect, 1,0, 17,0);
+    ui_rect_set(&lbl_name->rect, 1,1, 17,1);
     ui_control_append(cont, lbl_name);
 
     name->id = "TestNameEdit";
-    ui_rect_set(&name->rect, 1,1, 30,1);
+    ui_rect_set(&name->rect, 1,2, 30,2);
     ui_control_append(cont, name);
 
     lbl_cmd->id = "TestCmdLbl";
     ui_control_set_text(lbl_cmd, "OS command", 11);
-    ui_rect_set(&lbl_cmd->rect, 1,3, 12,3);
+    ui_rect_set(&lbl_cmd->rect, 1,4, 12,4);
     ui_control_append(cont, lbl_cmd);
 
     cmd->id = "TestCmdEdit";
-    ui_rect_set(&cmd->rect, 1,4, 30,4);
+    ui_rect_set(&cmd->rect, 1,5, 30,5);
     ui_control_append(cont, cmd);
 
-    btn_type->id = "TestTypeBtn";
-    btn_type->button->clicked = evt_show_type_list;
-    ui_control_set_text(btn_type, "Type", 4);
-    ui_rect_set(&btn_type->rect, 32,0, 38,0);
-    ui_control_append(cont, btn_type);
-
     btn_new->id = "TestNewBtn";
+    btn_new->button->clicked = evt_add_atom;
     btn_new->button->clicked = evt_test_new_atom;
     btn_new->button->horz_align = HorzAlignCenter;
     ui_rect_set(&btn_new->rect, right-6,0, right-1, 0);
@@ -1131,40 +1292,30 @@ static ui_Wrapper* create_test_edit(ui_Window* win)
     list->id ="TestTestsList";
     list->list->fetch_row = list_test_row;
     list->list->select_row_evt = evt_select_atom;
-    ui_rect_set(&list->rect, 32,2, right,bottom-1);
+    ui_rect_set(&list->rect, 32,2, right,bottom-2);
     ui_control_append(cont, list);
 
     lbl_flags->id = "TestFlagsLbl";
     ui_control_set_text(lbl_flags, "Has states", -1);
-    ui_rect_set(&lbl_flags->rect, 1,6, 10,6);
+    ui_rect_set(&lbl_flags->rect, 1,7, 10,7);
     ui_control_append(cont,  lbl_flags);
 
     list_flags->id = "TestFlagsList";
     list_flags->list->fetch_row = list_test_flags;
     list_flags->list->select_row_evt = evt_test_remove_flag;
-    ui_rect_set(&list_flags->rect, 1,7, 13,12);
+    ui_rect_set(&list_flags->rect, 1,8, 13,12);
     ui_control_append(cont, list_flags);
 
     lbl_allflags->id = "TestAllflagsLbl";
     ui_control_set_text(lbl_allflags, "Available", 10);
-    ui_rect_set(&lbl_allflags->rect, 15,6, 24,6);
+    ui_rect_set(&lbl_allflags->rect, 15,7, 24,7);
     ui_control_append(cont, lbl_allflags);
 
     list_allflags->id = "TestAllflagsList";
     list_allflags->list->fetch_row = list_test_allflags;
     list_allflags->list->select_row_evt = evt_test_add_flag;
-    ui_rect_set(&list_allflags->rect, 15,7, 30,13);
+    ui_rect_set(&list_allflags->rect, 15,8, 30,12);
     ui_control_append(cont, list_allflags);
-
-    // insert last to render last as we don't have any Z-order
-    list_type->id = "TestTypeList";
-    list_type->list->fetch_row = list_test_types;
-    list_type->list->select_row_evt = evt_test_type_selected;
-    ui_control_set_shown(list_type, false);
-    ui_control_set_position(list_type,
-        btn_type->rect.top_left.x, btn_type->rect.top_left.y+1);
-    ui_control_set_size(list_type, 10, 5);
-    ui_control_append(cont, list_type);
 
 
     return cont;
@@ -1175,19 +1326,26 @@ static ui_Wrapper* create_test_edit(ui_Window* win)
     ui_Wrapper *cont      = ui_window_new_control(win, UI_ContainerType),
                *test_id   = ui_window_new_control(win, UI_LabelType),
                *lbl_str   = ui_window_new_control(win, UI_LabelType),
-               *edit_str  = ui_window_new_control(win, UI_TextEditType);
+               *edit_str  = ui_window_new_control(win, UI_TextEditType),
+               *lbl_listall = ui_window_new_control(win, UI_LabelType),
+               *listall_type = ui_window_new_control(win, UI_ListType),
+               *lbl_list   = ui_window_new_control(win, UI_LabelType),
+               *list_type  = ui_window_new_control(win, UI_ListType),
+               *btn_back   = ui_window_new_control(win, UI_ButtonType);
 
-    if (!cont || !test_id || !lbl_str || !edit_str)
+    if (!cont || !test_id || !lbl_str || !edit_str ||
+        !listall_type || !list_type || !btn_back
+    )
         return NULL;
 
     int cols, rows, w = 70, h = 15;
     ui_get_screen_size(&cols, &rows);
 
     int width = MIN(w, cols)-2,
-        height = MAX(h, rows)-3;
+        height = MAX(h, rows)-4;
 
     cont->id = "TestAtomEditForm";
-    ui_rect_set(&cont->rect, 2,3, width+1,height+1);
+    ui_rect_set(&cont->rect, 2,3, width+1,height+3);
     ui_window_append(win, cont);
 
     test_id->id = "TestAtomTestId";
@@ -1196,14 +1354,43 @@ static ui_Wrapper* create_test_edit(ui_Window* win)
     ui_rect_set(&test_id->rect, 1,0, width-2,0);
     ui_control_append(cont, test_id);
 
+    btn_back->id = "TestAtomBackBtn";
+    btn_back->button->clicked = evt_atom_back;
+    ui_control_set_text(btn_back, "< Back", 6);
+    ui_rect_set(&btn_back->rect, 1,1, 7,1);
+    ui_control_append(cont, btn_back);
+
     lbl_str->id = "TestAtomStrLbl";
-    ui_rect_set(&lbl_str->rect, 13,1, 19,1);
-    ui_control_set_text(lbl_str, "String", -1);
+    ui_rect_set(&lbl_str->rect, 15,1, 21,1);
+    ui_control_set_text(lbl_str, "String", 6);
     ui_control_append(cont, lbl_str);
 
     edit_str->id = "TestAtomStrEdit";
-    ui_rect_set(&edit_str->rect, 13,3, width-15,3);
+    ui_rect_set(&edit_str->rect, 15,2, width-2,height-1);
     ui_control_append(cont, edit_str);
+
+    lbl_list->id = "TestAtomTypeLbl";
+    ui_rect_set(&lbl_list->rect, 1,3, 13,3);
+    ui_control_set_text(lbl_list, "Chosen Types", 12);
+    ui_control_append(cont, lbl_list);
+
+    list_type->id = "TestAtomTypeList";
+    list_type->list->fetch_row = list_atom_type;
+    list_type->list->select_row_evt = evt_atom_type_removed;
+    ui_rect_set(&list_type->rect, 1,4, 14,4);
+    ui_control_append(cont, list_type);
+
+    lbl_listall->id = "TestAtomTypeallLbl";
+    ui_rect_set(&lbl_listall->rect, 1,6, 11,6);
+    ui_control_set_text(lbl_listall, "Avaliable", 10);
+    ui_control_append(cont, lbl_listall);
+
+    listall_type->id = "TestAtomTypeallList";
+    listall_type->list->fetch_row = list_atom_alltypes;
+    listall_type->list->select_row_evt = evt_atom_type_selected;
+    ui_control_set_text(listall_type, "Type", 4);
+    ui_rect_set(&listall_type->rect, 1,7, 14,height-1);
+    ui_control_append(cont, listall_type);
 
     return cont;
  }
