@@ -152,7 +152,7 @@ void write_warning(const char* format, ...)
 bool is_dir(const char* path)
 {
     struct stat buf;
-    if (stat(path, &buf) == 0)
+    if (stat(path, &buf) != 0)
         return false;
 
     return S_ISDIR(buf.st_mode) != 0;
@@ -161,7 +161,7 @@ bool is_dir(const char* path)
 bool is_file(const char* path)
 {
     struct stat buf;
-    if (stat(path, &buf) == 0)
+    if (stat(path, &buf) != 0)
         return false;
 
     return S_ISDIR(buf.st_mode) == 0;
