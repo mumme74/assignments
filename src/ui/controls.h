@@ -16,6 +16,7 @@
 
 #define TEXT_INTERFACE \
     String text;         \
+    String* reftxt;        \
     enum ui_HorzAlign horz_align; \
     enum ui_VertAlign vert_align; \
 
@@ -124,6 +125,7 @@ typedef struct ui_Container {
 typedef struct ui_List {
     COMMON_INTERFACE
     FOCUSABLE_INTERFACE
+    TEXT_INTERFACE
     SCROLLABLE_INTERFACE
     FORMAT_TEXT_INTERFACE
     CLICKABLE_INTERFACE
