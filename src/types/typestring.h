@@ -45,7 +45,7 @@ bool String_set_string(String* dest, String* dsrc);
  * @param sz The size of src
  * @return false if failed
  */
-bool String_append_str(String *dest, const char *src, uint32_t sz);
+bool String_append_str(String *dest, const char *src, int32_t sz);
 
 /**
  * Append a string from another string

@@ -40,8 +40,10 @@ bool String_set_string(String* dest, String* src)
 }
 
 bool String_append_str(
-    String *dest, const char *src, uint32_t sz
+    String *dest, const char *src, int32_t sz
 ) {
+    sz = sz < 0 ? (int32_t)strlen(src) - sz
+                : MIN(sz, (int32_t)strnlen(src, sz));
     size_t needed = dest->size + sz+1;
     if (dest->capacity <= needed &&
         !String_resize(dest, needed)
@@ -153,6 +155,8 @@ bool String_scramble(String *dest, String *src, uint32_t scramble)
     )
         return false;
 
+    dest->size = src->size;
+
     for (uint32_t i = 0; i < src->size; ++i) {
         uint8_t shift = (i % 4) * 8;
         uint8_t sc = (scramble & (0xff << shift)) >> shift;
@@ -169,6 +173,8 @@ bool String_unscramble(String *dest, String *src, uint32_t scramble)
         !String_resize(dest, src->size)
     )
         return false;
+
+    dest->size = src->size;
 
     for (uint32_t i = 0; i < src->size; ++i) {
         uint8_t shift = (i % 4) * 8;
@@ -193,16 +199,22 @@ String* StringArr_join(StringArr* arr, const char *sep, mem_Arena* arena)
     if (arr->size == 0)
         return str;
 
-    const size_t MAX_SEP = 10;
+    static const size_t MAX_SEP = 10;
 
     String_set(str, arr->elements[0].elements, arr->elements[0].size);
 
-    for (size_t i = 1; i < arr->size; ++i) {
-        if (sep)
+    size_t i = 1;
+    for (; i < arr->size-1; ++i) {
+        if (sep && *sep != 0)
             String_append_str(str, sep, strnlen(sep, MAX_SEP));
 
         String_append_str(str, arr->elements[i].elements, arr->elements[i].size);
     }
+
+    if (sep && *sep != 0)
+        String_append_str(str, sep, strnlen(sep, MAX_SEP));
+
+    String_append_str(str, arr->elements[i].elements, arr->elements[i].size);
 
     return str;
 }
@@ -211,6 +223,8 @@ String* StringArr_join(StringArr* arr, const char *sep, mem_Arena* arena)
 
 bool StringArr_append(StringArr* arr, const char* str, int length)
 {
+    if (!str) return false;
+
     String tmp;
     String_init(&tmp, arr->arena);
     size_t size = length > -1 ? (size_t) length : strlen(str) - length;
