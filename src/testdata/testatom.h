@@ -7,7 +7,6 @@
  * The type of object
  */
 enum TestAtomType {
-    Unhandled_Type,
     Argv_Type,
     Stdin_Type,
     Stdout_Type,
@@ -44,7 +43,12 @@ enum TestAtomType test_atom_str_type(const char* str);
 
 void TestAtom_init(TestAtom *atom, mem_Arena* arena);
 
-StringArr* TestAtom_types(TestAtom* atom, mem_Arena* arena);
+
+/**
+ * Get a list aof all Type as a stringlist, currently not taken by test.
+ */
+StringArr* TestAtom_types_unset(TestAtom* atom, mem_Arena* arena);
+
 
 
 #endif // _TEST_ATOM_H_

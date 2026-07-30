@@ -16,7 +16,7 @@ enum TestFlags {
     AbortAfterTenErrors  = 0x0004,
     TimeoutTwoSecs       = 0x0008,
     TimeoutTenSecs       = 0x0010,
-    _TestFlagsEndMArker
+    _TestFlagsEndMarker
 };
 
 /**
