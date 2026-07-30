@@ -497,7 +497,7 @@ bool Document_read(Document* doc, FILE* rd_stream)
 
     } while (false);
 
-    write_error("Failed to read in document");
+    write_error("Failed to read in document\nWrong format");
 
     return false;
 }

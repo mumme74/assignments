@@ -235,7 +235,9 @@ TEST(doc_suite, doc_read, "Should read doc")
 
     expectEQ(doc->persons.size, 2);
     expectEQ(doc->persons.elements[0].name.elements, "Person1");
+    expectEQ(doc->persons.elements[0].name.size, 7);
     expectEQ(doc->persons.elements[1].name.elements, "Person2");
+    expectEQ(doc->persons.elements[1].name.size, 7);
 
     expectEQ(doc->test_sessions.size, 2);
     Test *test1 = &doc->test_sessions.elements[0];
