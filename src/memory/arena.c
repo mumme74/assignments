@@ -28,7 +28,6 @@ mem_arena_Segment* alloc_segment(size_t size) {
 
 void mem_arena_init(mem_Arena *arena)
 {
-    mem_arena_free(arena);
     arena->root = NULL;
 }
 
