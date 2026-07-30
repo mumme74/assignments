@@ -70,14 +70,14 @@ TEST_SETUP_FN(persons_suite)
 
 TEST(persons_suite, addperson, "Should add a person")
 {
-    add_person(0, "TestName", "text@fake.nu", Teacher);
+    add_person(0, "TestName", "text@fake.nu", TeacherRole);
     PersonArr_push_back(&persons, *pers[0]);
     expectEQ(persons.size, 1);
     expectEQ(persons.elements[0].name.elements, "TestName");
     expectEQ(persons.elements[0].email.elements, "text@fake.nu");
 
 
-    add_person(1, "Name2", "test2@morefake.com", Student);
+    add_person(1, "Name2", "test2@morefake.com", StudentRole);
     PersonArr_push_back(&persons, *pers[1]);
     expectEQ(persons.size, 2);
     expectEQ(persons.elements[1].name.elements, "Name2");
@@ -86,8 +86,8 @@ TEST(persons_suite, addperson, "Should add a person")
 
 TEST(persons_suite, indexof, "Should return indexof")
 {
-    add_person(0, "TestName", "text@fake.nu", Teacher);
-    add_person(1, "Name2", "test2@morefake.com", Student);
+    add_person(0, "TestName", "text@fake.nu", TeacherRole);
+    add_person(1, "Name2", "test2@morefake.com", StudentRole);
     int32_t idx = PersonArr_index_of(&persons, *pers[0]);
     expectEQ(idx, -1);
 
@@ -103,10 +103,10 @@ TEST(persons_suite, indexof, "Should return indexof")
 
 TEST(persons_suite, insert, "Should insert")
 {
-    add_person(0, "TestName", "text@fake.nu", Teacher);
-    add_person(1, "Name2", "test2@morefake.com", Student);
-    add_person(2, "Name3", "test3@faker.com", External);
-    add_person(3, "Name4", "test4@faking.com", External);
+    add_person(0, "TestName", "text@fake.nu", TeacherRole);
+    add_person(1, "Name2", "test2@morefake.com", StudentRole);
+    add_person(2, "Name3", "test3@faker.com", ExternalRole);
+    add_person(3, "Name4", "test4@faking.com", ExternalRole);
     PersonArr_push_back(&persons, *pers[0]);
     PersonArr_push_back(&persons, *pers[1]);
     PersonArr_push_back(&persons, *pers[2]);
@@ -123,10 +123,10 @@ TEST(persons_suite, pers_remove, "Should remove")
 {
     expectFalse(PersonArr_remove(&persons, 0));
 
-    add_person(0, "TestName", "text@fake.nu", Teacher);
-    add_person(1, "Name2", "test2@morefake.com", Student);
-    add_person(2, "Name3", "test3@faker.com", External);
-    add_person(3, "Name4", "test4@faking.com", External);
+    add_person(0, "TestName", "text@fake.nu", TeacherRole);
+    add_person(1, "Name2", "test2@morefake.com", StudentRole);
+    add_person(2, "Name3", "test3@faker.com", ExternalRole);
+    add_person(3, "Name4", "test4@faking.com", ExternalRole);
     PersonArr_push_back(&persons, *pers[0]);
     PersonArr_push_back(&persons, *pers[1]);
     PersonArr_push_back(&persons, *pers[2]);
