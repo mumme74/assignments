@@ -65,6 +65,8 @@ static void init_fill_doc(Document *doc)
     String_append_str(&test2.identifier,"Test2", 5);
     String_append_str(&test1.command,"Cmd1", 4);
     String_append_str(&test2.command,"Cmd2", 4);
+    test1.flags = 0xa5;
+    test2.flags = 0x5a;
 
 
     TestAtom a1, a2, a3, a4;
@@ -76,10 +78,6 @@ static void init_fill_doc(Document *doc)
     String_append_str(&a2.string, "Atom2", 5);
     String_append_str(&a3.string, "Atom3", 5);
     String_append_str(&a4.string, "Atom4", 5);
-    a1.flags = 0xa5;
-    a2.flags = 0xa6;
-    a3.flags = 0xa7;
-    a4.flags = 0xa8;
     a1.type = Argv_Type;
     a2.type = Stdin_Type;
     a3.type = Stdout_Type;
@@ -244,28 +242,26 @@ TEST(doc_suite, doc_read, "Should read doc")
     expectEQ(test1->identifier.elements, "Test1");
     expectEQ(test1->command.elements, "Cmd1");
     expectEQ(test1->atoms.size, 2);
+    expectEQ(test1->flags, 0xa5);
     Test *test2 = &doc->test_sessions.elements[1];
     expectEQ(test2->identifier.elements, "Test2");
     expectEQ(test2->command.elements, "Cmd2");
     expectEQ(test2->atoms.size, 2);
+    expectEQ(test2->flags, 0x5a);
 
     TestAtom *atom = &test1->atoms.elements[0];
     expectEQ(atom->string.elements, "Atom1");
-    expectEQ(atom->flags, 0xa5);
     expectEQ(atom->type, Argv_Type);
     atom = &test1->atoms.elements[1];
     expectEQ(atom->string.elements, "Atom2");
-    expectEQ(atom->flags, 0xa6);
     expectEQ(atom->type, Stdin_Type);
 
 
     atom = &test2->atoms.elements[0];
     expectEQ(atom->string.elements, "Atom3");
-    expectEQ(atom->flags, 0xa7);
     expectEQ(atom->type, Stdout_Type);
     atom = &test2->atoms.elements[1];
     expectEQ(atom->string.elements, "Atom4");
-    expectEQ(atom->flags, 0xa8);
     expectEQ(atom->type, Stdin_Type | Stdout_Type);
 
 }

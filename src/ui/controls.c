@@ -83,7 +83,8 @@ static int fg_default      = -1,
            bg_focus_color  = -1,
            bg_window       = -1,
            bg_active_color = -1,
-           fg_active_color = -1;
+           fg_active_color = -1,
+           bg_label_color  = -1;
 
 static void wrap_insert(ui_Wrapper **handle, ui_Wrapper *item, int idx)
 {
@@ -398,7 +399,7 @@ static void render_list(ui_List* list, ui_RenderRect* rect, bool has_focus)
         if (list->fetch_row)
             (*list->fetch_row)(list->wrapper, row, r);
 
-        StringSlice sl = String_uft8_slice(row, list->scroll.x, len);
+        StringSlice sl = String_uft8_slice(row, list->scroll.x, len-1);
         String* row2 = String_new_from_slice(&sl, &render_arena);
         row = row2 ? row2 : row;
 
@@ -814,14 +815,15 @@ void ui_window_init(ui_Window* win, mem_Arena* arena)
     win->cursor_holder = NULL;
     win->force_redraw = true;
 
-    if (fg_default < 0) fg_default = FrontColors.Blue;
-    if (bg_default < 0) bg_default = BackColors.LightGreen;
-    if (bg_container < 0) bg_container = BackColors.DarkGray;
-    if (bg_focus_color < 0) bg_focus_color = BackColors.Green;
-    if (fg_focus_color < 0) fg_focus_color = BackColors.Cyan;
-    if (bg_window < 0) bg_window = BackColors.LightMagenta;
+    if (fg_default < 0)      fg_default = FrontColors.Blue;
+    if (bg_default < 0)      bg_default = BackColors.LightGreen;
+    if (bg_container < 0)    bg_container = BackColors.DarkGray;
+    if (bg_focus_color < 0)  bg_focus_color = BackColors.Green;
+    if (fg_focus_color < 0)  fg_focus_color = BackColors.Cyan;
+    if (bg_window < 0)       bg_window = BackColors.LightMagenta;
     if (bg_active_color < 0) bg_active_color = BackColors.Cyan;
     if (fg_active_color < 0) fg_active_color = BackColors.Green;
+    if (bg_label_color < 0)  bg_label_color = BackColors.LightCyan;
 }
 
 
@@ -858,6 +860,8 @@ ui_Wrapper* ui_window_new_control(ui_Window* win, enum ui_ControlType type)
         INIT_COMMON_INTERFACE(wrap->label, "Label", false)
         INIT_TEXT_INTERFACE(wrap->label, win->arena)
         INIT_FORMAT_TEXT_INTERFACE(wrap->label)
+        if (wrap->label->bg_color == bg_default)
+            wrap->label->bg_color = bg_label_color;
         break;
     case UI_ListType:
         wrap->list = (ui_List*)mem_arena_alloc(win->arena, sizeof(ui_List));
@@ -1054,6 +1058,8 @@ void ui_window_set_active_state(ui_Window* win, bool active)
 
 ui_Wrapper* ui_window_get_id(ui_Window* win, const char* id)
 {
+    assert(win != NULL);
+    assert(id != NULL || *id != 0);
     return lookup_from_id(win->root, id);
 }
 

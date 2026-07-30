@@ -9,20 +9,35 @@
  * Controlflags for a test object
  */
 enum TestFlags {
-    SilentlyIgnoreFails = 0,
-    AbortFirstError = 0x0001,
+    TestFlagUndefined,
+    SilentlyIgnoreFails  = 0,
+    AbortFirstError      = 0x0001,
     AbortAfterFiveErrors = 0x0002,
-    AbortAfterTenErrors = 0x0004,
+    AbortAfterTenErrors  = 0x0004,
+    TimeoutTwoSecs       = 0x0008,
+    TimeoutTenSecs       = 0x0010,
+    _TestFlagsEndMArker
 };
 
 /**
  * A specific test session
  */
 typedef struct Test {
+    enum TestFlags flags; ///< flags for this test
     String identifier; ///< A identifier for this test
     String command; ///< The command to run on the client
     TestAtomArr atoms; ///< The test objects for this test
 } Test;
+
+/**
+ * Return string representation of flags
+ */
+const char* test_flag_to_str(enum TestFlags flag);
+
+/**
+ * Return flag from a mathing string
+ */
+enum TestFlags test_flag_str_to_flag(const char* str);
 
 /**
  * An array of test sessions
@@ -41,6 +56,11 @@ typedef struct Test {
 
 
 void Test_init(Test *test, mem_Arena* arena);
+
+/**
+ * Returns all selected flags as a string array
+ */
+StringArr* Test_flags(Test* test, mem_Arena* arena);
 
 
 

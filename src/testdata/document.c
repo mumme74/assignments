@@ -117,14 +117,13 @@ static bool write_test_atom(TestAtom* atom, FILE* wr_stream)
     if (!write_uint32(atom->type, wr_stream))
         return false;
 
-    if (!write_uint32(atom->flags, wr_stream))
-        return false;
-
     return write_string(&atom->string, wr_stream);
 }
 
 static bool write_test(Test* test, FILE* wr_stream)
 {
+    if (!write_uint32((uint32_t)test->flags, wr_stream))
+        return false;
     if (!write_string(&test->identifier, wr_stream))
         return false;
 
@@ -268,14 +267,14 @@ static bool read_atom(TestAtom* atom, FILE* rd_stream)
 {
     if (!read_uint32(&atom->type, rd_stream))
         return false;
-    if (!read_uint32(&atom->flags, rd_stream))
-        return false;
 
     return read_string(&atom->string, rd_stream);
 }
 
 static bool read_test(Test* test, FILE* rd_stream)
 {
+    if (!read_uint32(&test->flags, rd_stream))
+        return false;
     if (!read_string(&test->identifier, rd_stream))
         return false;
     if (!read_string(&test->command, rd_stream))

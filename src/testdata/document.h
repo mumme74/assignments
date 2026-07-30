@@ -64,13 +64,13 @@ TestArr
     uint32_t number of test sessions in this array
 
     Test (repeating)
+        uint32_t flags
         String identifier
         String command
         uint32_t number of atoms in this test
 
         TestAtom (repeating)
             uint32_t Test type
-            uint32_t flags
             String string The thing to do or compare.
 
 
